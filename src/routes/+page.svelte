@@ -1,30 +1,37 @@
 <script lang="ts">
-	const asOf = '—';
+	import SiteHeader from '$lib/components/SiteHeader.svelte';
+	import NetworkStatus from '$lib/components/NetworkStatus.svelte';
+	import SiteFooter from '$lib/components/SiteFooter.svelte';
+	import { refresh } from '$lib/state/network.svelte';
+
+	$effect(() => {
+		void refresh();
+	});
 </script>
 
 <svelte:head>
 	<title>Metagraphs</title>
 </svelte:head>
 
-<main>
+<div class="page">
 	<div class="pulse" aria-hidden="true"></div>
 
-	<div class="content">
-		<h1>Metagraphs</h1>
-		<p class="descriptor">A living visualisation of the Bittensor network.</p>
-	</div>
+	<SiteHeader />
+
+	<main aria-label="network field"></main>
 
 	<footer>
-		<span class="stamp">as of {asOf}</span>
+		<NetworkStatus />
+		<SiteFooter />
 	</footer>
-</main>
+</div>
 
 <style>
-	main {
+	.page {
 		position: relative;
 		min-height: 100dvh;
 		display: grid;
-		grid-template-rows: 1fr auto;
+		grid-template-rows: auto 1fr auto;
 		background: var(--bg-deep);
 		overflow: hidden;
 	}
@@ -32,6 +39,7 @@
 	.pulse {
 		position: absolute;
 		inset: -20%;
+		z-index: 0;
 		background: radial-gradient(
 			circle at 50% 50%,
 			rgba(240, 188, 118, 0.32) 0%,
@@ -47,51 +55,23 @@
 		pointer-events: none;
 	}
 
-	.content {
-		grid-row: 1;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.75rem;
-		padding: 2rem;
-		text-align: center;
+	.page > :global(header),
+	main,
+	footer {
+		position: relative;
 		z-index: 1;
 	}
 
-	h1 {
-		margin: 0;
-		font-size: clamp(2.25rem, 6vw, 3.75rem);
-		font-weight: 300;
-		letter-spacing: 0.08em;
-		color: var(--fg);
-		text-shadow: 0 0 28px rgba(240, 188, 118, 0.28);
-	}
-
-	.descriptor {
-		margin: 0;
-		font-size: clamp(0.95rem, 1.4vw, 1.1rem);
-		font-weight: 300;
-		letter-spacing: 0.03em;
-		color: var(--fg-dim);
-		max-width: 36ch;
+	main {
+		display: block;
 	}
 
 	footer {
-		grid-row: 2;
 		display: flex;
-		justify-content: center;
-		padding: 1.5rem 2rem 2rem;
-		z-index: 1;
-	}
-
-	.stamp {
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		color: var(--fg-dim);
-		opacity: 0.65;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.65rem;
+		padding: 1.25rem 1.5rem 2rem;
 	}
 
 	@keyframes breathe {
