@@ -259,13 +259,13 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 
 The build is sequenced as eight stages, each ending in a stop-and-confirm boundary. Stage prompts live in [`docs/handoff/`](docs/handoff/):
 
-| Stage | File                        | Outcome                                                                     |
-| ----- | --------------------------- | --------------------------------------------------------------------------- |
-| 1     | `01-bootstrap.md`           | Greenfield scaffold + canonical docs + holding page                         |
-| 2     | `02-data-pipeline.md`       | Taostats snapshot cron + `network.json` schema                              |
-| 3     | `03-scaffold.md`            | Components, layout, deploy verification (overlap with Stage 1 to reconcile) |
-| 4     | `04-field.md`               | The breathing field of 128 (Three.js hero)                                  |
-| 5     | `05-heartbeat-lifecycle.md` | Emission pulse + births/deaths + honesty colouring                          |
-| 6     | `06-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                  |
-| 7     | `07-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                         |
-| 8     | `08-tests-signoff.md`       | Integration tests, browser verification, signoff                            |
+| Stage | File                        | Outcome                                                                                                |
+| ----- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 1     | `01-bootstrap.md`           | Greenfield scaffold + canonical docs + holding page                                                    |
+| 2     | `02-data-pipeline.md`       | Taostats snapshot cron + `network.json` schema (per-Yuma-epoch, data branch + jsDelivr)                |
+| 3     | `03-scaffold.md`            | First real components + browser fetch of jsDelivr-served network.json + visual verification on staging |
+| 4     | `04-field.md`               | The breathing field of 128 (Three.js hero)                                                             |
+| 5     | `05-heartbeat-lifecycle.md` | Emission pulse + births/deaths + honesty colouring                                                     |
+| 6     | `06-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                                             |
+| 7     | `07-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                                                    |
+| 8     | `08-tests-signoff.md`       | Integration tests, browser verification, signoff                                                       |

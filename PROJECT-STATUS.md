@@ -10,9 +10,9 @@ Last updated: 2026-06-06.
 
 **Stage 1 — Greenfield bootstrap.** ✅ Complete and deployed.
 
-**Stage 2 — Data pipeline.** ✅ Code complete. Pending Stage 2 final act: human-triggered `workflow_dispatch` of `snapshot.yml` and `curl` of the jsDelivr URL confirming valid JSON within ~10 min of push.
+**Stage 2 — Data pipeline.** ✅ Complete. First snapshot verified live on the `data` branch and reachable through jsDelivr — epoch 23190, block 8348673, source taostats, 129 subnets, schema-valid. emissionShare concentration matches SPEC §2 (top ~30 carrying ~1.0 of the share, long cold tail at zero). First-snapshot quirk noted: most signals tagged `computed:v1-low-confidence` because `historicalEmissionShare` defaults to the current value when NDJSON has no prior row; rows transition to `computed:v1` as history accumulates.
 
-**Stage 3 — Scaffold.** Not yet started. The Stage 1 greenfield rename already landed the SvelteKit scaffold and Cloudflare-target work that the original Stage 3 prompt listed, so Stage 3 will be re-scoped to "first real components + visual verification on staging" when its prompt is authored. The overlap note from the previous status is closed.
+**Stage 3 — Scaffold.** Prompt authored in [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md); not yet executed. Re-scoped to "first real components + live data wiring + visual verification on staging" since Stage 1 already shipped the SvelteKit / Cloudflare scaffold the original Stage 3 listed. No Three.js field yet — that lands in Stage 4.
 
 ## What is in place (Stage 2)
 
@@ -41,21 +41,21 @@ Last updated: 2026-06-06.
 
 ## Stage index
 
-| Stage | File                                                                   | Status                                                                                                                                                |
-| ----- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | [`docs/handoff/01-bootstrap.md`](docs/handoff/01-bootstrap.md)         | ✅ Complete                                                                                                                                           |
-| 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Code complete; awaiting first workflow_dispatch + jsDelivr verification                                                                            |
-| 3     | `docs/handoff/03-scaffold.md`                                          | Not started — prompt to be authored. Re-scope to "first real components + visual verification on staging" given Stage 1 already shipped the scaffold. |
-| 4     | `docs/handoff/04-field.md`                                             | Not started — prompt not yet authored                                                                                                                 |
-| 5     | `docs/handoff/05-heartbeat-lifecycle.md`                               | Not started — prompt not yet authored                                                                                                                 |
-| 6     | `docs/handoff/06-delegate-panel.md`                                    | Not started — prompt not yet authored                                                                                                                 |
-| 7     | `docs/handoff/07-time-and-sound.md`                                    | Not started — prompt not yet authored                                                                                                                 |
-| 8     | `docs/handoff/08-tests-signoff.md`                                     | Not started — prompt not yet authored                                                                                                                 |
+| Stage | File                                                                   | Status                                                |
+| ----- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
+| 1     | [`docs/handoff/01-bootstrap.md`](docs/handoff/01-bootstrap.md)         | ✅ Complete                                           |
+| 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Complete; verified live on jsDelivr at epoch 23190 |
+| 3     | [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md)           | Prompt authored; not yet executed                     |
+| 4     | `docs/handoff/04-field.md`                                             | Not started — prompt not yet authored                 |
+| 5     | `docs/handoff/05-heartbeat-lifecycle.md`                               | Not started — prompt not yet authored                 |
+| 6     | `docs/handoff/06-delegate-panel.md`                                    | Not started — prompt not yet authored                 |
+| 7     | `docs/handoff/07-time-and-sound.md`                                    | Not started — prompt not yet authored                 |
+| 8     | `docs/handoff/08-tests-signoff.md`                                     | Not started — prompt not yet authored                 |
 
 ## Open notes / things to surface next session
 
-- **Stage 2 final act (human).** From the GitHub Actions UI, run `Snapshot` → `Run workflow` on `main`. Confirm: the workflow creates the `data` branch, the snapshot commit lands as `chore(snap): epoch …`, and `curl https://cdn.jsdelivr.net/gh/hmgovt/metagraphs@data/static/network.json` returns valid JSON within ~10 min (jsDelivr's purge interval). Until that's confirmed, Stage 2 is not closed.
-- **Cloudflare Pages branch settings (human).** In the Pages dashboard, confirm the `data` branch is excluded from preview deployments — otherwise the per-epoch cron triggers a preview build every 10 min and the quota argument behind D9 evaporates. Production branch stays `main`.
+- **Cloudflare Pages branch settings (human, confirm once).** In the Pages dashboard, confirm the `data` branch is excluded from preview deployments — otherwise the per-epoch cron triggers a preview build every 10 min and the quota argument behind D9 evaporates. Production branch stays `main`. Until this is confirmed, watch CF Pages build counts.
+- **First-snapshot signal quirk.** On a fresh NDJSON, `historicalEmissionShare` falls back to current `emissionShare`, so subnets currently earning zero land in the `computed:v1-low-confidence` path (`cumulativeEmissionApprox == 0` → `(P+V)/2`). As history accumulates and the running mean reflects multi-epoch behaviour, more subnets will move onto `computed:v1`. This is the formula behaving as specified in §3.3.1, not a bug — but worth re-checking the distribution after ~24 hours of snapshots before Stage 4 wires colour to the signal.
 - **Taostats auth scheme.** Taostats's public docs gate the auth-scheme reference page behind login. The fetcher codes the convention `Authorization: <key>` (no Bearer prefix); if the live API rejects this, the one-line fix is `authHeaders()` in [`scripts/fetchers-taostats.ts`](scripts/fetchers-taostats.ts). Surfacing here so the failure mode has a fast remedy.
 - **Subtensor storage names.** The fallback queries `subtensorModule.subnetAlphaIn`, `subnetTAO`, `emissionValues`, `networkRegisteredAt`, etc. These match the dTAO refactor's runtime as of writing; per-field `tryRead` swallows mismatches and forward-fill picks them up. If a future runtime rename causes the fallback to produce mostly-null rows, the storage names in [`scripts/fetchers-subtensor.ts`](scripts/fetchers-subtensor.ts) need an update.
 - **Schema sync.** `static/network.schema.json` lives on `main` and is mirrored onto `data` by the workflow each run. If you change it on `main`, the next snapshot will pick up the new version on `data` automatically — no manual sync needed.
