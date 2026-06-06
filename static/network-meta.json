@@ -1,0 +1,22 @@
+{
+  "lastRun": "2026-06-06T16:14:23.612Z",
+  "epoch": 23190,
+  "block": 8348673,
+  "source": "taostats",
+  "stale": false,
+  "endpoints": {
+    "subtensor:chainHead": {
+      "status": "ok"
+    },
+    "taostats:subnets": {
+      "status": "ok",
+      "httpStatus": 200,
+      "rowCount": 129,
+      "url": "https://api.taostats.io/api/subnet/latest/v1?page=1&limit=512&order=netuid_asc + https://api.taostats.io/api/dtao/pool/latest/v1?page=1&limit=512&order=netuid_asc"
+    }
+  },
+  "asOfWindow": [
+    "2026-06-06T16:14:23.612Z"
+  ],
+  "notes": []
+}
