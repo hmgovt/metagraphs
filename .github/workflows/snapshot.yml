@@ -1,9 +1,11 @@
-name: Daily snapshot
+name: Snapshot
 
 on:
   schedule:
-    # 02:00 UTC every day. Cron in GitHub Actions can drift up to ~15 min under load.
-    - cron: '0 2 * * *'
+    # Every 10 min — the orchestrator deduplicates by Yuma epoch
+    # (~72 min) so this catches every epoch within ~10 min of resolution
+    # while idle ticks exit before committing.
+    - cron: '*/10 * * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -15,13 +17,16 @@ concurrency:
 
 jobs:
   snapshot:
-    name: Pull Taostats snapshot and commit network.json
+    name: Pull network snapshot and commit to data branch
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -29,15 +34,53 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      - name: Stage 2 TODO — pull Taostats snapshot
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Switch to data branch (create from main on first run)
+        run: |
+          set -euo pipefail
+          git config user.name 'metagraphs-bot'
+          git config user.email 'bot@metagraphs.live'
+
+          if git fetch origin data 2>/dev/null; then
+            git switch -t origin/data 2>/dev/null || git switch data
+            # Pull main's schema onto data so validation always runs against
+            # the latest spec-pinned contract. No-op when unchanged.
+            git checkout main -- static/network.schema.json
+          else
+            echo "::notice title=Bootstrap::data branch does not exist; creating from main."
+            git switch -c data
+          fi
+
+      - name: Run snapshot pipeline
         env:
           TAOSTATS_API_KEY: ${{ secrets.TAOSTATS_API_KEY }}
         run: |
-          echo "::notice title=Stage 2 TODO::Implement the Taostats snapshot pull here."
-          echo "Stage 2 will:"
-          echo "  1. Install deps (npm ci)."
-          echo "  2. Call the Taostats free-tier API, paced to 5 calls/min."
-          echo "  3. Write static/network.json with subnet-level aggregates only."
-          echo "  4. Fall back to yesterday's snapshot on failure (fail-soft, never crash)."
-          echo "  5. Commit + push the updated network.json."
-          echo "Secret wiring verified: TAOSTATS_API_KEY is $([ -n \"$TAOSTATS_API_KEY\" ] && echo set || echo MISSING)."
+          set -euo pipefail
+          npm run snapshot:fetch
+          npm run snapshot:build
+          npm run snapshot:validate
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+
+          git add -- \
+            data/network.ndjson \
+            static/network.json \
+            static/network-meta.json \
+            static/network.schema.json 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "::notice title=No-op::Snapshot pipeline ran but no files changed (epoch dedup or identical pivot). Exiting clean."
+            exit 0
+          fi
+
+          EPOCH=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("static/network-meta.json","utf8")).epoch ?? "?")')
+          BLOCK=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("static/network-meta.json","utf8")).block ?? "?")')
+          STALE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("static/network-meta.json","utf8")).stale ? " (stale)" : "")')
+          STAMP=$(date -u +%Y-%m-%dT%H:%MZ)
+
+          git commit -m "chore(snap): epoch ${EPOCH} at ${STAMP}${STALE} (block ${BLOCK})"
+          git push -u origin data
