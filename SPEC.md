@@ -2,7 +2,7 @@
 
 _Source of truth for what Metagraphs is and how it behaves. If implementation drifts from this document, the implementation is wrong — unless the drift surfaces a real bug in the spec, in which case stop and update the spec before coding around it._
 
-Last revised: 2026-06-06 (Stage 2 data pipeline — §7 cadence/delivery rewrite + §7.4 snapshot schema). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+Last revised: 2026-06-06 (Stage 3 scaffold — §3.6 honest-telemetry strip + §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
 
 ---
 
@@ -115,6 +115,17 @@ A panel ships in v1, wired to a **partner validator** on a revenue-share basis. 
 - Architected to **repoint to our own validator hotkey later without a redesign** (graduation path: partner now → own validator once delegation volume and ops justify it).
 - **Our own (future) validator renders as a living cell inside the organism** so a user can watch the stake they just delegated flow in on the next heartbeat. The tool that visualises the incentive network is itself a node in it.
 - **No private keys, seed phrases, or signing flows are handled by us.** Delegation is initiated through the user's own wallet. We display and direct; we never custody.
+
+### 3.6 Honest-telemetry strip
+
+A single monospace line of telemetry sits in the footer of every page from Stage 3 onward, reading from the live snapshot. It is a **load-bearing component of the honesty contract (D4), not chrome.** Format and states:
+
+- **Fresh:** `as of {YYYY-MM-DD HH:MM UTC} · epoch {N} · {totalSubnets} subnets · source {taostats|subtensor}`.
+- **Stale:** the line is prefixed `stale · …` whenever `network.json.stale === true`. The rest of the line stays visible — the user sees that the stamp they're reading _is_ stale.
+- **Loading (no data yet):** `as of —` — the same baseline the Stage 1 holding page rendered. This is the SSR-prerendered baseline; hydration replaces it.
+- **Unreachable (fetch failed):** `as of — · data unreachable`. No toast, no spinner, no error icon — D4's absence-surfaced-honestly contract forbids the dramatised version.
+
+`asOf` always renders to minute precision (`YYYY-MM-DD HH:MM UTC`); the chain does not tick at second resolution and surfacing it would imply false freshness. The fetch cadence is 5 minutes (jsDelivr's TTL is ~10 min and the cron commits every 10 min, so 5 min keeps the page within one epoch of fresh); the visible **epoch pulse** is a Stage 5 concern and must not be coupled to the fetch cadence.
 
 ## 4. Aesthetic rule (hard guardrail)
 
@@ -259,13 +270,13 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 
 The build is sequenced as eight stages, each ending in a stop-and-confirm boundary. Stage prompts live in [`docs/handoff/`](docs/handoff/):
 
-| Stage | File                        | Outcome                                                                                                |
-| ----- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 1     | `01-bootstrap.md`           | Greenfield scaffold + canonical docs + holding page                                                    |
-| 2     | `02-data-pipeline.md`       | Taostats snapshot cron + `network.json` schema (per-Yuma-epoch, data branch + jsDelivr)                |
-| 3     | `03-scaffold.md`            | First real components + browser fetch of jsDelivr-served network.json + visual verification on staging |
-| 4     | `04-field.md`               | The breathing field of 128 (Three.js hero)                                                             |
-| 5     | `05-heartbeat-lifecycle.md` | Emission pulse + births/deaths + honesty colouring                                                     |
-| 6     | `06-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                                             |
-| 7     | `07-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                                                    |
-| 8     | `08-tests-signoff.md`       | Integration tests, browser verification, signoff                                                       |
+| Stage | File                        | Outcome                                                                                                              |
+| ----- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 1     | `01-bootstrap.md`           | Greenfield scaffold + canonical docs + holding page                                                                  |
+| 2     | `02-data-pipeline.md`       | Taostats snapshot cron + `network.json` schema (per-Yuma-epoch, data branch + jsDelivr)                              |
+| 3     | `03-scaffold.md`            | First real components + browser fetch of jsDelivr-served network.json + visual verification on staging — ✅ complete |
+| 4     | `04-field.md`               | The breathing field of 128 (Three.js hero)                                                                           |
+| 5     | `05-heartbeat-lifecycle.md` | Emission pulse + births/deaths + honesty colouring                                                                   |
+| 6     | `06-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                                                           |
+| 7     | `07-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                                                                  |
+| 8     | `08-tests-signoff.md`       | Integration tests, browser verification, signoff                                                                     |

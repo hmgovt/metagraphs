@@ -6,7 +6,7 @@ Canonical domain: [metagraphs.live](https://metagraphs.live)
 
 ## Status
 
-Stage 2 — data pipeline. Snapshots commit per-Yuma-epoch to the `data` branch; CF Pages stays on `main`. The site itself still serves the Stage 1 holding page until Stage 4 lands the breathing field. See [`docs/handoff/`](docs/handoff/) for the staged implementation plan and [`SPEC.md`](SPEC.md) / [`DECISIONS.md`](DECISIONS.md) for the project's source of truth.
+Stage 3 — scaffold. The browser now reads the live snapshot from jsDelivr and renders an honest telemetry strip (`as of … · epoch N · M subnets · source X`) per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip); the main field region is **deliberately empty** until Stage 4 lands the Three.js breathing field. See [`docs/handoff/`](docs/handoff/) for the staged implementation plan and [`SPEC.md`](SPEC.md) / [`DECISIONS.md`](DECISIONS.md) for the project's source of truth.
 
 ## Stack
 
@@ -75,6 +75,16 @@ npm run snapshot:validate  # ajv against static/network.schema.json
 ```
 
 The orchestrator deduplicates by Yuma epoch, so re-running inside the same epoch is a clean no-op.
+
+### Data layer (browser)
+
+The Stage 3 scaffold wires the jsDelivr-served snapshot directly into a Svelte 5 runes state store:
+
+- [`src/lib/types/network.ts`](src/lib/types/network.ts) — browser-facing TypeScript types mirroring [`static/network.schema.json`](static/network.schema.json) (the contract). Types and schema move in lock-step.
+- [`src/lib/state/network.svelte.ts`](src/lib/state/network.svelte.ts) — the single source of truth for `network.json` + `network-meta.json`. Fields: `data`, `meta`, `loading`, `error`, `lastFetchedAt`. Exposes `refresh()` for the initial mount and re-fetches every **5 minutes** via an interval started on the first call. Browser-only — SSR is a no-op so the prerendered page paints `as of —` and hydration drives the live fetch. A `schemaVersion !== 1` response is captured as an error rather than rendered as a malformed object.
+- [`src/lib/components/NetworkStatus.svelte`](src/lib/components/NetworkStatus.svelte) — the honest telemetry strip per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip). Surfaces fresh / stale / loading / unreachable; never a fabricated timestamp.
+
+Stage 4 reads the same store for cell counts; Stage 5 reads it for `realRevenueSignal` / `signalSource` to drive honesty colouring. Field-rendering concerns do not live in the store.
 
 ## Environment
 

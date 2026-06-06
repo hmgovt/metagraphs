@@ -12,7 +12,19 @@ Last updated: 2026-06-06.
 
 **Stage 2 — Data pipeline.** ✅ Complete. First snapshot verified live on the `data` branch and reachable through jsDelivr — epoch 23190, block 8348673, source taostats, 129 subnets, schema-valid. emissionShare concentration matches SPEC §2 (top ~30 carrying ~1.0 of the share, long cold tail at zero). First-snapshot quirk noted: most signals tagged `computed:v1-low-confidence` because `historicalEmissionShare` defaults to the current value when NDJSON has no prior row; rows transition to `computed:v1` as history accumulates.
 
-**Stage 3 — Scaffold.** Prompt authored in [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md); not yet executed. Re-scoped to "first real components + live data wiring + visual verification on staging" since Stage 1 already shipped the SvelteKit / Cloudflare scaffold the original Stage 3 listed. No Three.js field yet — that lands in Stage 4.
+**Stage 3 — Scaffold.** ✅ Complete and deployed. The browser fetches the live snapshot from jsDelivr on first paint and refreshes every 5 minutes; the honest telemetry strip per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip) renders `as of YYYY-MM-DD HH:MM UTC · epoch N · M subnets · source X` with the four states (fresh / stale / loading / unreachable) all visually confirmed. The `<main>` region is **deliberately empty** until Stage 4 lands the Three.js breathing field. No Three.js code yet, no per-subnet cell rendering, no clickable-cell handler — those land in Stage 4 / 5.
+
+## What is in place (Stage 3)
+
+- **Browser-facing types** in [`src/lib/types/network.ts`](src/lib/types/network.ts) — `SubnetRow`, `LifecycleEvent`, `NetworkEvents`, `NetworkJson`, `EndpointStatus`, `NetworkMeta`. Mirrored from `scripts/snapshot-types.ts` rather than re-exported, so the browser bundle does not pull in the Node-side pipeline. Schema in [`static/network.schema.json`](static/network.schema.json) is still the contract.
+- **Network state store** at [`src/lib/state/network.svelte.ts`](src/lib/state/network.svelte.ts) — Svelte 5 runes, single source of truth. `data` / `meta` / `loading` / `error` / `lastFetchedAt`, plus a `refresh()` function. Browser-only (SSR is a no-op early-return); the first `refresh()` call lazily installs the 5-minute interval. `schemaVersion !== 1` is captured as an error.
+- **Components** in [`src/lib/components/`](src/lib/components/):
+  - `SiteHeader.svelte` — wordmark + descriptor hoisted into a header element, light visual weight, mobile-friendly.
+  - `NetworkStatus.svelte` — the §3.6 honest-telemetry strip. Fresh / stale / loading / unreachable, no toast/spinner/icon. `asOf` formatted to minute precision (`YYYY-MM-DD HH:MM UTC`).
+  - `SiteFooter.svelte` — attribution + cadence line + links to the `data` branch / SPEC / DECISIONS.
+- **Page chassis** in [`src/routes/+page.svelte`](src/routes/+page.svelte) — header / main / footer grid; `<main>` deliberately empty; warm radial pulse hoisted to a sibling layer **behind** the field-mount region; mount-time `$effect` calls `refresh()` once.
+- **Four telemetry states visually confirmed** via headless Chrome against a live build of the production output: fresh (`epoch 23190 · 129 subnets · source taostats`), stale (`stale ·` prefix renders with the rest of the line intact), loading (SSR-prerendered `as of —` baseline), unreachable (`as of — · data unreachable`). Stale + unreachable verifications used temporary `data-source.ts` edits which were reverted before commit.
+- **No API keys in the build output** (`grep -r TAOSTATS_API_KEY build/` returns nothing). The only external URLs the page chunk fetches are the two jsDelivr `network.json` / `network-meta.json` constants in `src/lib/data-source.ts`.
 
 ## What is in place (Stage 2)
 
@@ -41,16 +53,16 @@ Last updated: 2026-06-06.
 
 ## Stage index
 
-| Stage | File                                                                   | Status                                                |
-| ----- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
-| 1     | [`docs/handoff/01-bootstrap.md`](docs/handoff/01-bootstrap.md)         | ✅ Complete                                           |
-| 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Complete; verified live on jsDelivr at epoch 23190 |
-| 3     | [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md)           | Prompt authored; not yet executed                     |
-| 4     | `docs/handoff/04-field.md`                                             | Not started — prompt not yet authored                 |
-| 5     | `docs/handoff/05-heartbeat-lifecycle.md`                               | Not started — prompt not yet authored                 |
-| 6     | `docs/handoff/06-delegate-panel.md`                                    | Not started — prompt not yet authored                 |
-| 7     | `docs/handoff/07-time-and-sound.md`                                    | Not started — prompt not yet authored                 |
-| 8     | `docs/handoff/08-tests-signoff.md`                                     | Not started — prompt not yet authored                 |
+| Stage | File                                                                   | Status                                                 |
+| ----- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1     | [`docs/handoff/01-bootstrap.md`](docs/handoff/01-bootstrap.md)         | ✅ Complete                                            |
+| 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Complete; verified live on jsDelivr at epoch 23190  |
+| 3     | [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md)           | ✅ Complete; live telemetry strip rendering on staging |
+| 4     | `docs/handoff/04-field.md`                                             | Not started — prompt not yet authored                  |
+| 5     | `docs/handoff/05-heartbeat-lifecycle.md`                               | Not started — prompt not yet authored                  |
+| 6     | `docs/handoff/06-delegate-panel.md`                                    | Not started — prompt not yet authored                  |
+| 7     | `docs/handoff/07-time-and-sound.md`                                    | Not started — prompt not yet authored                  |
+| 8     | `docs/handoff/08-tests-signoff.md`                                     | Not started — prompt not yet authored                  |
 
 ## Open notes / things to surface next session
 
