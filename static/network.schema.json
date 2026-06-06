@@ -1,0 +1,137 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://metagraphs.live/network.schema.json",
+	"title": "Metagraphs snapshot",
+	"description": "Per-Yuma-epoch snapshot of Bittensor subnet aggregates. Pinned in SPEC.md §7.4.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schemaVersion",
+		"asOf",
+		"epoch",
+		"block",
+		"stale",
+		"source",
+		"totalSubnets",
+		"subnets",
+		"events"
+	],
+	"properties": {
+		"schemaVersion": {
+			"type": "integer",
+			"const": 1
+		},
+		"asOf": {
+			"type": "string",
+			"format": "date-time",
+			"description": "ISO 8601 UTC at snapshot time"
+		},
+		"epoch": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Chain epoch index (floor(block / 360))"
+		},
+		"block": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Block height at snapshot time"
+		},
+		"stale": {
+			"type": "boolean",
+			"description": "True when this snapshot is the previous one re-served because both sources failed"
+		},
+		"source": {
+			"type": "string",
+			"enum": ["taostats", "subtensor"]
+		},
+		"totalSubnets": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"subnets": {
+			"type": "array",
+			"description": "Sorted by uid ascending. Positional shape is load-bearing for the field render.",
+			"items": { "$ref": "#/$defs/subnet" }
+		},
+		"events": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["registrations", "deregistrations"],
+			"properties": {
+				"registrations": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/lifecycleEvent" }
+				},
+				"deregistrations": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/lifecycleEvent" }
+				}
+			}
+		}
+	},
+	"$defs": {
+		"subnet": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"uid",
+				"name",
+				"emissionShare",
+				"alphaPrice",
+				"marketCap",
+				"validators",
+				"miners",
+				"realRevenueSignal",
+				"signalSource",
+				"registeredAtBlock"
+			],
+			"properties": {
+				"uid": { "type": "integer", "minimum": 0 },
+				"name": { "type": ["string", "null"] },
+				"emissionShare": {
+					"type": ["number", "null"],
+					"minimum": 0,
+					"maximum": 1
+				},
+				"alphaPrice": {
+					"type": ["number", "null"],
+					"minimum": 0
+				},
+				"marketCap": {
+					"type": ["number", "null"],
+					"minimum": 0
+				},
+				"validators": {
+					"type": ["integer", "null"],
+					"minimum": 0
+				},
+				"miners": {
+					"type": ["integer", "null"],
+					"minimum": 0
+				},
+				"realRevenueSignal": {
+					"type": ["number", "null"],
+					"minimum": 0,
+					"maximum": 1
+				},
+				"signalSource": {
+					"type": ["string", "null"],
+					"enum": ["taostats", "computed:v1", "computed:v1-low-confidence", null]
+				},
+				"registeredAtBlock": {
+					"type": ["integer", "null"],
+					"minimum": 0
+				}
+			}
+		},
+		"lifecycleEvent": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["uid", "atBlock"],
+			"properties": {
+				"uid": { "type": "integer", "minimum": 0 },
+				"atBlock": { "type": "integer", "minimum": 0 }
+			}
+		}
+	}
+}

@@ -2,7 +2,7 @@
 
 _Source of truth for what Metagraphs is and how it behaves. If implementation drifts from this document, the implementation is wrong — unless the drift surfaces a real bug in the spec, in which case stop and update the spec before coding around it._
 
-Last revised: 2026-06-04 (Stage 1 bootstrap). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+Last revised: 2026-06-06 (Stage 2 data pipeline — §7 cadence/delivery rewrite + §7.4 snapshot schema). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
 
 ---
 
@@ -153,33 +153,87 @@ If a session feels pulled to any of these to "complete" something — stop and s
 
 ## 7. Data architecture
 
-The architecture mirrors BWI exactly. **All rendering math is client-side; no keys reach the browser.**
+The architecture mirrors BWI's honest-data spine, adapted for the Bittensor epoch rhythm. **All rendering math is client-side; no keys reach the browser.**
 
 ### 7.1 Snapshot pipeline
 
-- A **daily GitHub Actions cron** at **02:00 UTC** runs the snapshot job.
-- The job pulls from the **Taostats free-tier API** (5 calls/min — must be paced with sleeps between calls).
-- `bittensor` SDK / `btcli` metagraph reads against a public Subtensor endpoint are an acceptable free fallback (no key required).
-- Output: a static **`network.json`** committed to `static/`. This is Metagraphs' equivalent of BWI's `prices.json`.
-- Fail-soft: a missed snapshot reuses yesterday's `network.json` with a visible "as of" stamp. Never crash; never fabricate a value.
+- A **GitHub Actions cron at `*/10 * * * *`** runs the snapshot job. Per D8, the maximum useful snapshot cadence is one per Yuma epoch (~72 min); the 10-minute cron guarantees we catch every epoch within ~10 min of its resolution. The orchestrator deduplicates by reading the current chain epoch and comparing to the last `data/network.ndjson` row — same epoch → exit 0 without writing or committing.
+- Primary source: **Taostats free-tier REST API** (5 calls/min — paced with 12 s + jitter between calls; per-day cap not documented, surfaced in `network-meta.json` if hit).
+- Fallback source (D10): **`@polkadot/api` over a public Subtensor RPC** (`wss://entrypoint-finney.opentensor.ai:443`). Queries the same fields directly from chain state when Taostats's bulk endpoint errors after retries. JavaScript-only toolchain — no Python `btcli` / `bittensor` SDK in CI.
+- Outputs (per D9, written to a separate `data` branch of this repo, not `main`):
+  - `data/network.ndjson` — append-only history, one snapshot per line.
+  - `static/network.json` — latest snapshot pivoted into the §7.4 schema. This is Metagraphs' equivalent of BWI's `prices.json`.
+  - `static/network.schema.json` — JSON Schema (draft 2020-12) the validator runs against on every commit. Also pinned to `main`.
+  - `static/network-meta.json` — per-endpoint health, source (`taostats` | `subtensor`), `lastRun`, `epoch`, redacted URLs, running window of recent "as of" timestamps. Replaces and merges BWI's `health.json` + `meta.json`.
+- Delivery (per D9): Cloudflare Pages watches **`main` only**, so snapshot commits do not redeploy the site (~20 snapshots/day would otherwise blow the CF Pages 500-build/month tier). The browser fetches the latest snapshot via **jsDelivr's GitHub CDN**: `https://cdn.jsdelivr.net/gh/hmgovt/metagraphs@data/static/network.json`. Migration to `data.metagraphs.live` (Cloudflare R2) is Stage 7+ hardening, conditional on jsDelivr proving insufficient.
+- **Fail-soft contract:**
+  - If a single Taostats endpoint fails after retries, fall back to Subtensor for that field.
+  - If a single non-critical field is missing from both sources, forward-fill from the previous NDJSON row and mark in `network-meta.json` (BWI pattern — honest because labelled).
+  - If both sources fail entirely AND no previous row exists: hard-fail, exit non-zero, leave previous snapshot in place.
+  - If both sources fail entirely AND a previous row exists: rewrite `static/network.json` with the previous body but a fresh `asOf` and `"stale": true`; commit the stale marker; the site continues serving honest, labelled stale data. **Never crash; never fabricate a value.**
 
 ### 7.2 What v1 snapshots
 
-Subnet-level **aggregates only**:
+Subnet-level **aggregates only**, one row per Yuma epoch:
 
 - emission share
 - alpha price
 - market cap
 - validator / miner counts
-- real-revenue signal where available
-- registration / deregistration events
+- real-revenue signal (Taostats direct field where available; otherwise computed per §3.3.1)
+- registration / deregistration events (derived in the pivot step by diffing the subnet set against the previous NDJSON row — not fetched)
 
 Full per-subnet weight matrices (`subnet.W`) are heavy and belong to the Phase-2 micro dive — **do not pull them at v1**.
 
 ### 7.3 Secrets
 
 - `TAOSTATS_API_KEY` lives in `.env` locally (gitignored) and in the repo's GitHub Actions secrets for scheduled runs.
-- **Never** in chat, commits, `.env.example`, or printed output.
+- The Subtensor fallback uses a public RPC endpoint and requires no key.
+- **Never** in chat, commits, `.env.example`, or printed output. All fetcher URLs are passed through a `redactUrl` helper before any log line; auth headers are redacted by a `redactHeaders` helper.
+
+### 7.4 Snapshot schema
+
+The contract the rest of the pipeline (and ultimately the browser) builds against. Pinned here so any change is reviewable in the spec, not buried in a script. A matching `static/network.schema.json` (JSON Schema draft 2020-12) is validated against every commit; a schema-invalid snapshot fails the workflow loudly and leaves the previous snapshot in place.
+
+```jsonc
+{
+	"schemaVersion": 1,
+	"asOf": "2026-06-06T02:14:00Z", // ISO 8601 UTC at snapshot time
+	"epoch": 1234567, // chain epoch index (block height / 360)
+	"block": 444444120, // block height at snapshot time
+	"stale": false, // true when the snapshot couldn't refresh and is being re-served
+	"source": "taostats", // "taostats" | "subtensor"
+	"totalSubnets": 128,
+	"subnets": [
+		{
+			"uid": 0,
+			"name": "root", // null when name is not registered/known
+			"emissionShare": 0.0123, // 0..1, fraction of this epoch's emission
+			"alphaPrice": 0.042, // TAO per alpha
+			"marketCap": 12345.67, // TAO
+			"validators": 64,
+			"miners": 256,
+			"realRevenueSignal": null, // 0..1 or null (see §3.3.1)
+			"signalSource": null, // "taostats" | "computed:v1" | "computed:v1-low-confidence" | null
+			"registeredAtBlock": 4123000 // null if not provided
+		}
+		// … one entry per active subnet, sorted by uid ascending
+	],
+	"events": {
+		"registrations": [{ "uid": 47, "atBlock": 1234500 }],
+		"deregistrations": [{ "uid": 23, "atBlock": 1234480 }]
+	}
+}
+```
+
+**Shape rules:**
+
+- `subnets` is an **array sorted by uid ascending**, not an object map. The breathing field iterates positions; lookups happen by index. This shape is load-bearing for the macro view's positional rendering — keep it stable.
+- Numeric fields use `null` (not `undefined`, not `0`, not `"-"`) for missing data, so the renderer can branch on `=== null` for the labelled neutral state per §3.3.
+- `realRevenueSignal` and `signalSource` are produced per §3.3.1 — the formula is the source of truth, this schema is its contract.
+- `events.registrations` and `events.deregistrations` may be empty arrays (no registrations this epoch is the steady state).
+
+**Versioning.** Any field added or removed bumps `schemaVersion` and updates `network.schema.json` in the same commit. If implementation forces a schema change, **update this section first**, then code.
 
 ## 8. Stack
 
