@@ -1,0 +1,43 @@
+name: Daily snapshot
+
+on:
+  schedule:
+    # 02:00 UTC every day. Cron in GitHub Actions can drift up to ~15 min under load.
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Pull Taostats snapshot and commit network.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Stage 2 TODO — pull Taostats snapshot
+        env:
+          TAOSTATS_API_KEY: ${{ secrets.TAOSTATS_API_KEY }}
+        run: |
+          echo "::notice title=Stage 2 TODO::Implement the Taostats snapshot pull here."
+          echo "Stage 2 will:"
+          echo "  1. Install deps (npm ci)."
+          echo "  2. Call the Taostats free-tier API, paced to 5 calls/min."
+          echo "  3. Write static/network.json with subnet-level aggregates only."
+          echo "  4. Fall back to yesterday's snapshot on failure (fail-soft, never crash)."
+          echo "  5. Commit + push the updated network.json."
+          echo "Secret wiring verified: TAOSTATS_API_KEY is $([ -n \"$TAOSTATS_API_KEY\" ] && echo set || echo MISSING)."
