@@ -61,6 +61,46 @@ Mandatory, not decorative. The visualisation surfaces what an insider dashboard 
 
 Where data is missing or stale, the cell renders as a labelled neutral state with an "as of" note — never a fabricated number.
 
+#### 3.3.1 Real-revenue signal — v1 formula
+
+The number that drives the warm/cold rendering. A 0..1 score per subnet, computed deterministically from the fields already in the snapshot schema (§7.4) plus the running NDJSON history. 1 = market and participation suggest real productive use. 0 = the network is paying this subnet and nothing arms-length agrees it's worth it.
+
+For each subnet `s` at snapshot block `B`:
+
+- `age_blocks_s = B − registeredAtBlock_s` (0 if `registeredAtBlock` is null)
+- `historicalEmissionShare_s` = arithmetic mean of this subnet's `emissionShare` across all `data/network.ndjson` rows where the subnet was present. Falls back to current `emissionShare_s` when no history exists.
+- `cumulativeEmissionApprox_s = age_blocks_s × 0.5 × historicalEmissionShare_s` (~0.5 TAO/block post-halving, weighted by this subnet's share)
+
+Three sub-signals:
+
+| Symbol | Formula                                                | Range | Meaning                                                                                   |
+| ------ | ------------------------------------------------------ | ----- | ----------------------------------------------------------------------------------------- |
+| `M_s`  | `clamp(marketCap_s / cumulativeEmissionApprox_s, 0,1)` | 0..1  | Market endorsement: does the alpha market value the subnet above the TAO emitted into it? |
+| `P_s`  | `min(miners_s / 256, 1)`                               | 0..1  | Miner participation: how saturated is the worker pool?                                    |
+| `V_s`  | `validators_s / 64`                                    | 0..1  | Validator engagement: how saturated is the judge pool?                                    |
+
+Weighted sum:
+
+```
+RealUseSignal_s = 0.6·M_s + 0.2·P_s + 0.2·V_s
+```
+
+**Edge cases:**
+
+- `cumulativeEmissionApprox_s == 0` (subnet registered this epoch or `registeredAtBlock` unknown): `M_s` is undefined. Fall back to `RealUseSignal_s = (P_s + V_s) / 2` and tag `signalSource: "computed:v1-low-confidence"`.
+- `marketCap_s == null` (data missing): `RealUseSignal_s = null` and `signalSource: null`. Cell renders as the labelled neutral state per §3.3.
+- `historicalEmissionShare_s == 0` (subnet appeared in history but never earned): `M_s = 0`. The signal effectively drops to `0.2·P_s + 0.2·V_s` — small but non-zero, since zero earnings on a subnet that exists is itself a strong "this is dead weight" signal.
+
+**Why the 0.6 / 0.2 / 0.2 weighting.** The alpha market is the only arms-length voter we have access to without per-validator weight matrices (which are Phase 2). A subnet that has been emitted ~10 K TAO over a year but whose alpha market cap sits at ~3 K TAO is being explicitly devalued by the market — that's the cleanest "no real demand" signal in the network. Participation and engagement are coarse proxies that move with real use but can be sybil-faked; they smooth `M_s`'s short-term volatility without dominating it.
+
+**What this catches:** the long tail of subsidy-farming subnets with collapsed alpha prices renders cold. Subnets whose alpha caps exceed cumulative emissions render warm.
+
+**What it misses (honest disclosure):** a genuinely new useful subnet may read cold for its first weeks while the market discovers it. A speculative pump-and-dump can read warm briefly. A sybil network with co-ordinated validator + miner stake may register as "saturated" until the market signal eventually catches up. These are known limitations of `v1`; the Phase-2 micro dive's per-subnet weight-matrix entropy will refine `M_s` into a properly distribution-aware score, at which point the formula version bumps to `v2`.
+
+**Stability:** deterministic, no inputs beyond `network.json` + the running NDJSON history. Idempotent across re-runs of the same snapshot.
+
+**Versioning:** when the formula changes, bump `signalSource` from `"computed:v1"` to `"computed:v2"` (etc.) and append a new dated entry in `DECISIONS.md`. Never silently re-weight; the colour code on the field is load-bearing for the brand.
+
 ### 3.4 Time and sound
 
 - **Default playback** is a gentle time-lapse of the most recent real beats, looping, labelled honestly as time-lapsed.
