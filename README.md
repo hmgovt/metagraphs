@@ -6,7 +6,7 @@ Canonical domain: [metagraphs.live](https://metagraphs.live)
 
 ## Status
 
-Stage 3 — scaffold. The browser now reads the live snapshot from jsDelivr and renders an honest telemetry strip (`as of … · epoch N · M subnets · source X`) per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip); the main field region is **deliberately empty** until Stage 4 lands the Three.js breathing field. See [`docs/handoff/`](docs/handoff/) for the staged implementation plan and [`SPEC.md`](SPEC.md) / [`DECISIONS.md`](DECISIONS.md) for the project's source of truth.
+Stage 4 — the breathing field. The ~128 Bittensor subnets render as a phyllotaxis-by-uid scatter of additively-blended bioluminescent cells in `<main>`; size is `√(emissionShare)`-encoded; the BWI Pu-238 two-channel shader (intensity + temperature) is wired with intensity from `emissionShare` and temperature pinned to a warm baseline. **Stage 5 wires temperature from `realRevenueSignal`** (honesty colouring) and introduces the epoch-locked heartbeat — Stage 4 is the chassis with one channel lit. See [`docs/handoff/`](docs/handoff/) for the staged implementation plan and [`SPEC.md`](SPEC.md) / [`DECISIONS.md`](DECISIONS.md) for the project's source of truth.
 
 ## Stack
 
@@ -85,6 +85,18 @@ The Stage 3 scaffold wires the jsDelivr-served snapshot directly into a Svelte 5
 - [`src/lib/components/NetworkStatus.svelte`](src/lib/components/NetworkStatus.svelte) — the honest telemetry strip per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip). Surfaces fresh / stale / loading / unreachable; never a fabricated timestamp.
 
 Stage 4 reads the same store for cell counts; Stage 5 reads it for `realRevenueSignal` / `signalSource` to drive honesty colouring. Field-rendering concerns do not live in the store.
+
+### Field (browser)
+
+The Stage 4 breathing field lives under [`src/lib/field/`](src/lib/field/):
+
+- [`positions.ts`](src/lib/field/positions.ts) — pure Vogel phyllotaxis: `uid → (x, y)` in normalised field space. No Three.js, no DOM, no state.
+- [`shaders.ts`](src/lib/field/shaders.ts) — vertex (billboard + autonomous per-cell breathe with per-uid phase offset) + fragment (Gaussian core + halo, 3-stop cold↔mid↔warm gradient, additive blending). Two independent channels: `aIntensity` (Stage 4: from `emissionShare`) and `aTemperature` (Stage 4: pinned warm; Stage 5: from `realRevenueSignal`).
+- [`Field.svelte`](src/lib/field/Field.svelte) — Three.js mount via dynamic import inside `$effect` (so SSR-prerendered HTML stays canvas-free). One `InstancedBufferGeometry` + one `Mesh` + one draw call per frame. `ResizeObserver` keeps the orthographic camera matched to the canvas aspect. Raycasting is done in 2D field space (cheaper and more controllable than `Raycaster`), with a 1.4× hit-radius multiplier and a 0.025 floor for ergonomic clicks on small cells.
+- [`SubnetTooltip.svelte`](src/lib/field/SubnetTooltip.svelte) — DOM overlay (not in-canvas) anchored to the clicked cell's projected screen position. Two lines: `subnet {uid}{ · name}` and `detail coming soon · phase 2`. Per D1 and D6 — no emission share, no validator count, no on-hover labels.
+- [`config.ts`](src/lib/field/config.ts) — calibration constants. `MAX_SUBNETS = 256` (the 256-cap expansion lives in the layout from day one; today only ~128 uids are lit). `R_MIN = 0.022`, `R_MAX = 0.075`, `EMISSION_REF = 0.12`, `INTENSITY_BASELINE = 0.85`, `INTENSITY_EXTRA = 0.6`. Tune by eyeing the live snapshot, not by formula.
+
+Animation is decoupled from chain time at Stage 4: each cell breathes autonomously at ~6 s with a per-uid random phase offset, so the field looks alive without simulating an epoch pulse the chain hasn't actually emitted. The Yuma-epoch-locked heartbeat lands in Stage 5. `prefers-reduced-motion: reduce` zeroes the breathe amplitude.
 
 ## Environment
 

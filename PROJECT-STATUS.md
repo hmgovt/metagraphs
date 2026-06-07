@@ -2,7 +2,7 @@
 
 _Snapshot of where Metagraphs is right now. Update at the end of every stage and whenever a stage prompt is amended. Source of truth for spec is [`SPEC.md`](SPEC.md); for decisions, [`DECISIONS.md`](DECISIONS.md); for stage prompts, [`docs/handoff/`](docs/handoff/)._
 
-Last updated: 2026-06-06.
+Last updated: 2026-06-07.
 
 ---
 
@@ -12,7 +12,19 @@ Last updated: 2026-06-06.
 
 **Stage 2 — Data pipeline.** ✅ Complete. First snapshot verified live on the `data` branch and reachable through jsDelivr — epoch 23190, block 8348673, source taostats, 129 subnets, schema-valid. emissionShare concentration matches SPEC §2 (top ~30 carrying ~1.0 of the share, long cold tail at zero). First-snapshot quirk noted: most signals tagged `computed:v1-low-confidence` because `historicalEmissionShare` defaults to the current value when NDJSON has no prior row; rows transition to `computed:v1` as history accumulates.
 
-**Stage 3 — Scaffold.** ✅ Complete and deployed. The browser fetches the live snapshot from jsDelivr on first paint and refreshes every 5 minutes; the honest telemetry strip per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip) renders `as of YYYY-MM-DD HH:MM UTC · epoch N · M subnets · source X` with the four states (fresh / stale / loading / unreachable) all visually confirmed. The `<main>` region is **deliberately empty** until Stage 4 lands the Three.js breathing field. No Three.js code yet, no per-subnet cell rendering, no clickable-cell handler — those land in Stage 4 / 5.
+**Stage 3 — Scaffold.** ✅ Complete and deployed. The browser fetches the live snapshot from jsDelivr on first paint and refreshes every 5 minutes; the honest telemetry strip per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip) renders `as of YYYY-MM-DD HH:MM UTC · epoch N · M subnets · source X` with the four states (fresh / stale / loading / unreachable) all visually confirmed.
+
+**Stage 4 — The breathing field.** ✅ Complete and deployed. The ~128 subnets render as a phyllotaxis-by-uid scatter of additively-blended bioluminescent cells via Three.js (r180, dynamic-imported into a ~680 KB chunk that only loads on Field mount). The two-channel shader is wired with intensity from `emissionShare` and temperature pinned to a warm baseline; Stage 5 wires temperature from `realRevenueSignal`. Click → DOM tooltip stub with uid + name + "detail coming soon · phase 2"; hover = cursor only (no on-hover numbers per D6). Per-cell autonomous breathe with per-uid phase offset; epoch-locked heartbeat is Stage 5. Calibration constants the executor settled on (in `src/lib/field/config.ts`): `R_MIN = 0.022`, `R_MAX = 0.075`, `EMISSION_REF = 0.12`, `INTENSITY_BASELINE = 0.85`, `INTENSITY_EXTRA = 0.6`. Verified on the live snapshot (epoch 23198, 129 subnets, 98 in the cold tail) at desktop and mobile viewports, with reduced-motion variant rendering cells static.
+
+## What is in place (Stage 4)
+
+- **Phyllotaxis layout** in [`src/lib/field/positions.ts`](src/lib/field/positions.ts) — pure function `uid → (x, y)`. Subnet 0 dead centre; new high-uid subnets at the rim. `MAX_SUBNETS = 256` from day one so the future cap expansion does not scramble positions.
+- **Two-channel shader** in [`src/lib/field/shaders.ts`](src/lib/field/shaders.ts) — vertex (billboard + per-uid breathe phase) + fragment (Gaussian core + halo + 3-stop cold↔mid↔warm gradient, additive blending). Built so Stage 5 wires `aTemperature` from `realRevenueSignal` without re-architecting.
+- **Three.js mount** in [`src/lib/field/Field.svelte`](src/lib/field/Field.svelte) — dynamic-imported (`await import('three')` inside `$effect`) so SSR-prerendered HTML is canvas-free. One `InstancedBufferGeometry`, one draw call per frame. `ResizeObserver` keeps the orthographic camera matched to canvas aspect. Raycast is done in 2D field space (cheaper than `THREE.Raycaster` for a flat field) with a 1.4× hit-radius multiplier and a 0.025 floor for ergonomic clicks on small cells.
+- **Click tooltip** in [`src/lib/field/SubnetTooltip.svelte`](src/lib/field/SubnetTooltip.svelte) — DOM overlay (not in-canvas) anchored to projected cell screen position. Two lines: `subnet {uid}{ · name}` and `detail coming soon · phase 2`. Dismisses on outside-click, Esc, scroll, resize. No emission share, no validator count — D1 + D6 hold the line.
+- **Page wiring** in [`src/routes/+page.svelte`](src/routes/+page.svelte) — Field mounted into `<main>`. `data-loaded` class drops the Stage 3 pulse to 50% opacity once snapshot data arrives, with a 600 ms ease-out transition. During loading / unreachable, the pulse stays at full opacity — the warm radial breathing remains the only sign of life until cells can render.
+- **Bundle hygiene** — `grep -r TAOSTATS_API_KEY build/` returns nothing. Three.js ships in a ~680 KB dynamic chunk (`build/_app/immutable/chunks/IV0SeLto.js`) that only loads when Field mounts; the initial page payload stays small. Page-chunk fetched URLs are still only the two jsDelivr constants.
+- **Calibration verified visually** at desktop (1920×1200, 1280×800) and mobile (390×844, 2× DPI) viewports. Top 5 emission cells (uids 95, 9, 84, 97, 107) are visibly larger and brighter than the 98-subnet cold tail; the field reads as bioluminescent cells, not as a network graph or heatmap.
 
 ## What is in place (Stage 3)
 
@@ -58,7 +70,7 @@ Last updated: 2026-06-06.
 | 1     | [`docs/handoff/01-bootstrap.md`](docs/handoff/01-bootstrap.md)         | ✅ Complete                                            |
 | 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Complete; verified live on jsDelivr at epoch 23190  |
 | 3     | [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md)           | ✅ Complete; live telemetry strip rendering on staging |
-| 4     | [`docs/handoff/04-field.md`](docs/handoff/04-field.md)                 | Prompt authored; not yet executed                      |
+| 4     | [`docs/handoff/04-field.md`](docs/handoff/04-field.md)                 | ✅ Complete; live field rendering on staging           |
 | 5     | `docs/handoff/05-heartbeat-lifecycle.md`                               | Not started — prompt not yet authored                  |
 | 6     | `docs/handoff/06-delegate-panel.md`                                    | Not started — prompt not yet authored                  |
 | 7     | `docs/handoff/07-time-and-sound.md`                                    | Not started — prompt not yet authored                  |

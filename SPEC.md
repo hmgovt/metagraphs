@@ -2,7 +2,7 @@
 
 _Source of truth for what Metagraphs is and how it behaves. If implementation drifts from this document, the implementation is wrong — unless the drift surfaces a real bug in the spec, in which case stop and update the spec before coding around it._
 
-Last revised: 2026-06-06 (Stage 3 scaffold — §3.6 honest-telemetry strip + §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+Last revised: 2026-06-07 (Stage 4 field — §3.1 phyllotaxis + size + shader commitments, §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
 
 ---
 
@@ -41,6 +41,12 @@ The breathing field of ~128 subnets as the hero. Each subnet is a single cell wh
 - **Lifecycle state** — ignition for new registrations, death for deregistrations.
 
 A cell is clickable, but in v1 the click opens a no-op placeholder reading "subnet detail coming soon" — the micro view is Phase 2 (see §6).
+
+**Positional layout (v1 commitment, Stage 4).** Each subnet's screen position is a deterministic function of its `uid` via Vogel sunflower phyllotaxis: `angle = uid × goldenAngle`, `radius = √(uid / MAX_SUBNETS) × R_field`. Subnet 0 (root) sits at the centre; new high-uid subnets ignite at the rim. The cap is a config constant, not a magic number — `MAX_SUBNETS = 256` from day one, so the future 256-cap expansion does not scramble positions, even though only ~128 uids are lit today. Cell positions are stable across snapshots: deregistered uids leave dark slots, registrations re-light their original slot at the next epoch the chain assigns that uid.
+
+**Size encoding (v1).** `radius ∝ √(emissionShare)`, clamped to `[R_min, R_max]`; null emissionShare renders at `R_min`. Area-proportional, not radius-proportional, so the perceived "how much" matches share intuition.
+
+**Glow shader (v1).** A single-quad billboard per cell with additive blending, soft Gaussian core + halo. The shader carries two **separated channels** — `aIntensity` and `aTemperature` — reusing the BWI Pu-238 principle. Stage 4 wires intensity from `emissionShare` and pins temperature to a single warm baseline. Stage 5 wires temperature from `realRevenueSignal` per cell (cold = subsidy-farming, warm = real revenue) without re-architecting the shader. The temperature axis interpolates a 3-stop perceptual gradient `cold (#1e6f8a) ↔ mid (#c8d8d0) ↔ warm (#f0bc76)` rather than a Planckian curve — a literal blackbody passes through orange-red at low temperatures, which would read as "alert / danger," exactly the wrong register for the honesty axis.
 
 ### 3.2 The heartbeat
 
@@ -275,7 +281,7 @@ The build is sequenced as eight stages, each ending in a stop-and-confirm bounda
 | 1     | `01-bootstrap.md`           | Greenfield scaffold + canonical docs + holding page                                                                  |
 | 2     | `02-data-pipeline.md`       | Taostats snapshot cron + `network.json` schema (per-Yuma-epoch, data branch + jsDelivr)                              |
 | 3     | `03-scaffold.md`            | First real components + browser fetch of jsDelivr-served network.json + visual verification on staging — ✅ complete |
-| 4     | `04-field.md`               | The breathing field of 128 (Three.js hero) — prompt authored                                                         |
+| 4     | `04-field.md`               | The breathing field of 128 (Three.js hero) — ✅ complete                                                             |
 | 5     | `05-heartbeat-lifecycle.md` | Emission pulse + births/deaths + honesty colouring                                                                   |
 | 6     | `06-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                                                           |
 | 7     | `07-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                                                                  |
