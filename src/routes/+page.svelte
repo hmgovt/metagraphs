@@ -2,23 +2,28 @@
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import NetworkStatus from '$lib/components/NetworkStatus.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
-	import { refresh } from '$lib/state/network.svelte';
+	import Field from '$lib/field/Field.svelte';
+	import { networkStore, refresh } from '$lib/state/network.svelte';
 
 	$effect(() => {
 		void refresh();
 	});
+
+	let dataLoaded = $derived(networkStore.data !== null);
 </script>
 
 <svelte:head>
 	<title>Metagraphs</title>
 </svelte:head>
 
-<div class="page">
+<div class="page" class:data-loaded={dataLoaded}>
 	<div class="pulse" aria-hidden="true"></div>
 
 	<SiteHeader />
 
-	<main aria-label="network field"></main>
+	<main>
+		<Field ariaLabel="Bittensor network field" />
+	</main>
 
 	<footer>
 		<NetworkStatus />
@@ -53,6 +58,11 @@
 		transform-origin: 50% 50%;
 		will-change: opacity, transform;
 		pointer-events: none;
+		transition: opacity 600ms ease-out;
+	}
+
+	.page.data-loaded .pulse {
+		opacity: 0.5;
 	}
 
 	.page > :global(header),
@@ -64,6 +74,8 @@
 
 	main {
 		display: block;
+		position: relative;
+		min-height: 0;
 	}
 
 	footer {
@@ -91,6 +103,10 @@
 			animation: none;
 			opacity: 0.85;
 			transform: scale(1);
+		}
+
+		.page.data-loaded .pulse {
+			opacity: 0.45;
 		}
 	}
 </style>
