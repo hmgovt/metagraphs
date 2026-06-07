@@ -51,14 +51,18 @@ export const fragmentShader = /* glsl */ `
 	varying float vTemperature;
 	varying float vAlive;
 
-	// Three-stop perceptual gradient. Not a Planckian curve — see
+	// Three-stop saturated gradient. Not a Planckian curve — see
 	// 04-field.md Step 2 for why we don't go through orange-red.
-	//   cold = deep teal-cyan  (#1e6f8a) — subsidy-farming, deep-ocean
-	//   mid  = desaturated near-white sea-green (#c8d8d0)
-	//   warm = bioluminescent amber (#f0bc76) — matches Stage 3 pulse
-	const vec3 COLD = vec3(0.118, 0.435, 0.541);
-	const vec3 MID  = vec3(0.784, 0.847, 0.816);
-	const vec3 WARM = vec3(0.941, 0.737, 0.463);
+	//   cold = vivid cyan         (#1bd0ff) — subsidy-farming, deep-ocean
+	//                                          phosphorescence
+	//   mid  = deep slate-purple  (#5a5180) — characterful neutral, NOT
+	//                                          desaturated white (which
+	//                                          washes out under additive
+	//                                          blending against any glow)
+	//   warm = saturated gold     (#ffb733) — real productive use
+	const vec3 COLD = vec3(0.106, 0.816, 1.000);
+	const vec3 MID  = vec3(0.353, 0.318, 0.502);
+	const vec3 WARM = vec3(1.000, 0.718, 0.200);
 
 	vec3 temperatureToColor(float t) {
 		float tc = clamp(t, 0.0, 1.0);
