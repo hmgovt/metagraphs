@@ -19,26 +19,33 @@
 <div class="page" class:data-loaded={dataLoaded}>
 	<div class="pulse" aria-hidden="true"></div>
 
-	<SiteHeader />
-
 	<main>
 		<Field ariaLabel="Bittensor network field" />
 	</main>
 
-	<footer>
+	<div class="overlay-top">
+		<SiteHeader />
+	</div>
+
+	<div class="overlay-bottom">
 		<NetworkStatus />
 		<SiteFooter />
-	</footer>
+	</div>
 </div>
 
 <style>
 	.page {
 		position: relative;
-		min-height: 100dvh;
-		display: grid;
-		grid-template-rows: auto 1fr auto;
+		width: 100vw;
+		height: 100dvh;
 		background: var(--bg-deep);
 		overflow: hidden;
+	}
+
+	main {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
 	}
 
 	.pulse {
@@ -47,9 +54,9 @@
 		z-index: 0;
 		background: radial-gradient(
 			circle at 50% 50%,
-			rgba(240, 188, 118, 0.32) 0%,
-			rgba(232, 156, 92, 0.18) 14%,
-			rgba(200, 120, 70, 0.07) 32%,
+			rgba(240, 188, 118, 0.28) 0%,
+			rgba(232, 156, 92, 0.15) 14%,
+			rgba(200, 120, 70, 0.06) 32%,
 			rgba(180, 100, 60, 0.02) 55%,
 			rgba(180, 100, 60, 0) 72%
 		);
@@ -62,28 +69,43 @@
 	}
 
 	.page.data-loaded .pulse {
-		opacity: 0.5;
+		opacity: 0.35;
 	}
 
-	.page > :global(header),
-	main,
-	footer {
-		position: relative;
-		z-index: 1;
+	.overlay-top {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 2;
+		display: flex;
+		justify-content: center;
+		pointer-events: none;
 	}
 
-	main {
-		display: block;
-		position: relative;
-		min-height: 0;
+	.overlay-top :global(header) {
+		padding: 1.25rem 1rem 0.5rem;
+		background: linear-gradient(180deg, rgba(2, 3, 5, 0.6) 0%, rgba(2, 3, 5, 0) 100%);
+		width: 100%;
 	}
 
-	footer {
+	.overlay-bottom {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		z-index: 2;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.65rem;
-		padding: 1.25rem 1.5rem 2rem;
+		gap: 0.4rem;
+		padding: 1.5rem 1rem 1.1rem;
+		background: linear-gradient(0deg, rgba(2, 3, 5, 0.7) 0%, rgba(2, 3, 5, 0) 100%);
+		pointer-events: none;
+	}
+
+	.overlay-bottom :global(a) {
+		pointer-events: auto;
 	}
 
 	@keyframes breathe {
@@ -101,12 +123,12 @@
 	@media (prefers-reduced-motion: reduce) {
 		.pulse {
 			animation: none;
-			opacity: 0.85;
+			opacity: 0.75;
 			transform: scale(1);
 		}
 
 		.page.data-loaded .pulse {
-			opacity: 0.45;
+			opacity: 0.3;
 		}
 	}
 </style>
