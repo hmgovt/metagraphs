@@ -4,6 +4,24 @@ _A dated log of locked decisions. Newest at top. If a decision needs to change, 
 
 ---
 
+## 2026-06-07 — Hero-scale field corrections (mid-Stage-4 reshape)
+
+Captured during the Stage 4 review conversation, when the first cut of the field shipped as a small constellation of warm dots that conveyed no semantic structure. The product-level critique surfaced the gap: a portrait of an organism cannot be one that the viewer cannot read. These three decisions extend D1, D2, D4, and D6 with the corrections needed to make the field carry meaning at first glance.
+
+### D11 — Honesty colour lands at Stage 4 (compress the 4/5 boundary)
+
+The original staging put `realRevenueSignal → temperature` at Stage 5 so that Stage 4 could ship the chassis without depending on data semantics. In practice this produced a field of undifferentiated warm-amber cells — the brand promise (`emission-farming subnets render cold; real-revenue subnets render warm`, D4) was visually absent on day one. Stage 4 now wires the §3.3.1 signal straight through to `aTemperature` via `temperatureFor(subnet)` in [`src/lib/field/temperature.ts`](src/lib/field/temperature.ts): non-null signal passes through, null signal renders at the neutral midpoint (`§3.3` labelled neutral state). Stage 5's scope shrinks to the **Yuma-epoch-locked heartbeat + birth/death animations + signal refinement** — still substantial, but no longer the moment the honesty axis arrives.
+
+### D12 — Microscope zoom is in scope; pan and orbit controls are not
+
+D6's "portrait, not explorer" guardrail forbade tables, leaderboards, and compare grids. My Stage 4 prompt over-extended that into "no zoom, no pan." On reflection, **zooming into a portrait is still portraiture** — a microscope dive into the organism, not navigation of a map. Stage 4 now supports: scroll wheel and trackpad-pinch (zoom centred on cursor), double-click on a cell (zoom toward it), Escape or `0` (reset to whole-field view). Bounded `[MIN_ZOOM=1, MAX_ZOOM=5.5]` so the viewer can lean in but never loses the organism. **No drag-to-pan** — pan is the affordance that tilts the experience into "explore a map," and that's the line D6 was always trying to draw. Cell name labels fade in past `NAME_LABEL_ZOOM_THRESHOLD=2.4`, only for cells with `emissionShare > 0` (the meaningful 33, not the cold-tail 98) — curiosity is rewarded with detail, not denied.
+
+### D13 — Field renders as the hero, not framed by chrome
+
+Stage 4's first cut placed the field in the middle row of a `header / main / footer` grid, which boxed it to ~580 px tall on a 1280×800 viewport. The result read as a small constellation in a wide letterbox. The page chassis now puts the field at `position: absolute; inset: 0` covering the whole viewport; the header and the telemetry/attribution strip become small floating overlays with subtle gradient backgrounds for legibility. The field is the page; the chrome dim-floats over it. Pulse opacity drops to 0.35 (was 0.5) once data lands so the cells are the brightest objects on screen.
+
+---
+
 ## 2026-06-06 — Data pipeline architectural decisions (Stage 2 planning)
 
 Captured during the Stage 2 planning conversation. These extend the D3 honest-data spine from the original kickoff with the cadence, delivery, and resilience choices forced by the move from daily → per-epoch snapshots.
