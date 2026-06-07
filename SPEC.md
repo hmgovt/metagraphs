@@ -2,7 +2,7 @@
 
 _Source of truth for what Metagraphs is and how it behaves. If implementation drifts from this document, the implementation is wrong — unless the drift surfaces a real bug in the spec, in which case stop and update the spec before coding around it._
 
-Last revised: 2026-06-07 (Stage 4 field — §3.1 phyllotaxis + size + shader commitments, §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+Last revised: 2026-06-07 (Stage 4 hero-scale reshape — §3.1 honesty colour wired at Stage 4 per D11, §3.7 microscope zoom per D12, §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
 
 ---
 
@@ -46,7 +46,9 @@ A cell is clickable, but in v1 the click opens a no-op placeholder reading "subn
 
 **Size encoding (v1).** `radius ∝ √(emissionShare)`, clamped to `[R_min, R_max]`; null emissionShare renders at `R_min`. Area-proportional, not radius-proportional, so the perceived "how much" matches share intuition.
 
-**Glow shader (v1).** A single-quad billboard per cell with additive blending, soft Gaussian core + halo. The shader carries two **separated channels** — `aIntensity` and `aTemperature` — reusing the BWI Pu-238 principle. Stage 4 wires intensity from `emissionShare` and pins temperature to a single warm baseline. Stage 5 wires temperature from `realRevenueSignal` per cell (cold = subsidy-farming, warm = real revenue) without re-architecting the shader. The temperature axis interpolates a 3-stop perceptual gradient `cold (#1e6f8a) ↔ mid (#c8d8d0) ↔ warm (#f0bc76)` rather than a Planckian curve — a literal blackbody passes through orange-red at low temperatures, which would read as "alert / danger," exactly the wrong register for the honesty axis.
+**Glow shader (v1).** A single-quad billboard per cell with additive blending, soft Gaussian core + halo. The shader carries two **separated channels** — `aIntensity` and `aTemperature` — reusing the BWI Pu-238 principle. Stage 4 wires both: intensity from `emissionShare` (size and brightness reinforce), temperature from `realRevenueSignal` per cell (D11 — the honesty axis lands on day one, not at Stage 5). The temperature axis interpolates a 3-stop perceptual gradient `cold (#1e6f8a) ↔ mid (#c8d8d0) ↔ warm (#f0bc76)` rather than a Planckian curve — a literal blackbody passes through orange-red at low temperatures, which would read as "alert / danger," exactly the wrong register for the honesty axis. Subnets with `realRevenueSignal === null` render at the neutral mid temperature (§3.3 labelled neutral state); subnets with a computed signal render along the cold→warm axis.
+
+**Hero framing (v1).** The field is the page, not a panel inside it. `<main>` sizes to the full viewport; the wordmark and the telemetry strip overlay it as small floating dim-mono blocks (gradient backings for legibility, never solid bars). Pulse opacity drops to 0.35 once data lands so the cells are the brightest objects on screen.
 
 ### 3.2 The heartbeat
 
@@ -132,6 +134,17 @@ A single monospace line of telemetry sits in the footer of every page from Stage
 - **Unreachable (fetch failed):** `as of — · data unreachable`. No toast, no spinner, no error icon — D4's absence-surfaced-honestly contract forbids the dramatised version.
 
 `asOf` always renders to minute precision (`YYYY-MM-DD HH:MM UTC`); the chain does not tick at second resolution and surfacing it would imply false freshness. The fetch cadence is 5 minutes (jsDelivr's TTL is ~10 min and the cron commits every 10 min, so 5 min keeps the page within one epoch of fresh); the visible **epoch pulse** is a Stage 5 concern and must not be coupled to the fetch cadence.
+
+### 3.7 Microscope zoom
+
+D12 permits zooming **into** the portrait. It does not permit panning across it or orbiting around it — those affordances tilt the experience into "explore a map," which D6 explicitly disavows. Concretely:
+
+- **Scroll wheel / trackpad pinch** — zoom centred on the cursor. Bounded `[MIN_ZOOM, MAX_ZOOM]` (1.0 to 5.5 at the time of writing). `MIN_ZOOM = 1` frames the whole field; `MAX_ZOOM` frames roughly 4–5 cells across the viewport.
+- **Double-click on a cell** — tween (~600 ms, easeOutCubic) toward the cell at a mid zoom level. Click on empty field at `MIN_ZOOM` is the existing tooltip dismissal; double-click on empty field resets to whole-field view.
+- **Escape / `0` / `Home`** — reset to whole-field view.
+- **No drag-to-pan.** When zoomed in, the viewer leans closer; they don't tour. To see a different region they zoom out first.
+- **Camera position is clamped** so that no zoom + offset combination ever lets the field circle leave the viewport. The organism is always present.
+- **Cell name labels** fade in past `NAME_LABEL_ZOOM_THRESHOLD` (~2.4) as small dim-mono DOM elements positioned by projecting cell coordinates to screen each frame. Labels are shown only for cells with `emissionShare > 0` — the meaningful ~30, not the cold-tail 98. Curiosity is rewarded with detail, not denied.
 
 ## 4. Aesthetic rule (hard guardrail)
 
@@ -281,8 +294,8 @@ The build is sequenced as eight stages, each ending in a stop-and-confirm bounda
 | 1     | `01-bootstrap.md`           | Greenfield scaffold + canonical docs + holding page                                                                  |
 | 2     | `02-data-pipeline.md`       | Taostats snapshot cron + `network.json` schema (per-Yuma-epoch, data branch + jsDelivr)                              |
 | 3     | `03-scaffold.md`            | First real components + browser fetch of jsDelivr-served network.json + visual verification on staging — ✅ complete |
-| 4     | `04-field.md`               | The breathing field of 128 (Three.js hero) — ✅ complete                                                             |
-| 5     | `05-heartbeat-lifecycle.md` | Emission pulse + births/deaths + honesty colouring                                                                   |
+| 4     | `04-field.md`               | Hero field (Three.js, phyllotaxis, honesty colour, microscope zoom) — ✅ complete                                    |
+| 5     | `05-heartbeat-lifecycle.md` | Yuma-epoch-locked heartbeat + births/deaths + signal refinement (honesty colour landed at Stage 4, see D11)          |
 | 6     | `06-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                                                           |
 | 7     | `07-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                                                                  |
 | 8     | `08-tests-signoff.md`       | Integration tests, browser verification, signoff                                                                     |
