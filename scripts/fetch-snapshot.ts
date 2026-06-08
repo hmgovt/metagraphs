@@ -157,7 +157,18 @@ async function main(): Promise<number> {
 	}
 
 	// --- Step 2: epoch dedup ---
-	if (lastRow && lastRow.epoch === head.epoch && !lastRow.stale) {
+	//
+	// Epoch dedup is the normal-case skip. The exception is a schema
+	// upgrade: when the last NDJSON row was written under an older
+	// schemaVersion than the pipeline now emits, we re-run the fetch
+	// even if the chain epoch hasn't advanced — otherwise the page
+	// would render an outdated shape (missing new fields) for up to a
+	// full Yuma epoch (~72 min) after the upgrade.
+	const CURRENT_SCHEMA_VERSION = 2;
+	const lastSchemaVersion =
+		lastRow && typeof lastRow.schemaVersion === 'number' ? lastRow.schemaVersion : 0;
+	const needsSchemaUpgrade = !!lastRow && lastSchemaVersion < CURRENT_SCHEMA_VERSION;
+	if (lastRow && lastRow.epoch === head.epoch && !lastRow.stale && !needsSchemaUpgrade) {
 		console.log(`  Already have epoch ${head.epoch}, skipping.`);
 		writeMeta({
 			lastRun: asOf,
@@ -171,6 +182,12 @@ async function main(): Promise<number> {
 		});
 		await disconnectApi();
 		return 0;
+	}
+	if (needsSchemaUpgrade) {
+		notes.push(
+			`Re-fetching epoch ${head.epoch}: last NDJSON row is schemaVersion ${lastSchemaVersion}, pipeline emits ${CURRENT_SCHEMA_VERSION}.`
+		);
+		console.log(`  ${notes[notes.length - 1]}`);
 	}
 
 	// --- Step 3: Taostats primary ---
