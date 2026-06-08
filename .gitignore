@@ -18,6 +18,13 @@ Thumbs.db
 !.env.example
 !.env.test
 
+# Snapshot artefacts — live on the `data` branch only (D9). Local
+# snapshot runs produce these in the working tree; they must not land on
+# `main`. The workflow on the data branch tracks them; main never does.
+data/network.ndjson
+static/network.json
+static/network-meta.json
+
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
