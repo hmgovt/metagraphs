@@ -2,7 +2,7 @@
 
 _Snapshot of where Metagraphs is right now. Update at the end of every stage and whenever a stage prompt is amended. Source of truth for spec is [`SPEC.md`](SPEC.md); for decisions, [`DECISIONS.md`](DECISIONS.md); for stage prompts, [`docs/handoff/`](docs/handoff/)._
 
-Last updated: 2026-06-07.
+Last updated: 2026-06-08.
 
 ---
 
@@ -14,12 +14,13 @@ Last updated: 2026-06-07.
 
 **Stage 3 — Scaffold.** ✅ Complete and deployed. The browser fetches the live snapshot from jsDelivr on first paint and refreshes every 5 minutes; the honest telemetry strip per [SPEC §3.6](SPEC.md#36-honest-telemetry-strip) renders `as of YYYY-MM-DD HH:MM UTC · epoch N · M subnets · source X` with the four states (fresh / stale / loading / unreachable) all visually confirmed.
 
-**Stage 4 — The breathing field.** ✅ Complete and deployed (reshape pass landed 2026-06-07). The first cut shipped a small constellation of warm-amber dots that conveyed no semantic structure; product review forced the corrections logged as **D11 (honesty colour wired at Stage 4)**, **D12 (microscope zoom in scope; pan/orbit are not)**, and **D13 (field renders as the hero, not framed by chrome)**. The current Stage 4 deploys all three:
+**Stage 4 — The breathing field.** ✅ Complete and deployed (reshape pass landed 2026-06-07; snapshot schema v2 + logos landed 2026-06-08). The first cut shipped a small constellation of warm-amber dots that conveyed no semantic structure; product review forced the corrections logged as **D11 (honesty colour wired at Stage 4)**, **D12 (microscope zoom in scope; pan/orbit are not)**, **D13 (field renders as the hero, not framed by chrome)**, and **D14 (owner-declared logos plumbed through schema v2)**. The current Stage 4 deploys all four:
 
 - Field fills the full viewport via `position: absolute; inset: 0` on `<main>`; header and telemetry overlay it as small floating dim blocks with subtle gradient backings for legibility.
 - Two-channel shader fully wired — `aIntensity` from `emissionShare`, `aTemperature` from `realRevenueSignal` per cell via `temperatureFor(subnet)`. The 98-cell cold tail reads as teal at first paint; the 31 active subnets render along the cold↔warm axis. Honesty axis arrives on day one, not Stage 5.
 - Microscope zoom: wheel + trackpad pinch (cursor-centred), double-click to tween toward a cell, Esc / `0` resets. Bounded `[1, 5.5]`; camera position clamped so the organism never leaves the viewport. No drag-to-pan.
 - Cell name labels fade in past `NAME_LABEL_ZOOM_THRESHOLD = 2.4` for cells with `emissionShare > 0` — DOM elements positioned by frame-by-frame projection. ~30 labels at full zoom; the cold tail stays anonymous.
+- **Owner-declared subnet logos** (snapshot schema v2 per D14, SPEC §3.8) render as 14 px circular crops next to the cell name. URLs come from Taostats's `/api/subnet/identity/v1` bulk endpoint (one extra paced call per snapshot, ~95/129 subnets currently carry one). `referrerpolicy="no-referrer"` + `loading="lazy"` + `<img onerror>` silent fallback. Broken URLs (one subnet literally points at `https://deprecated.png`) travel honestly through the snapshot — never policed.
 
 Calibration constants for Stage 5 to inherit (in `src/lib/field/config.ts`): `R_MIN = 0.030`, `R_MAX = 0.115`, `EMISSION_REF = 0.12`, `INTENSITY_BASELINE = 0.85`, `INTENSITY_EXTRA = 0.7`, `MIN_ZOOM = 1`, `MAX_ZOOM = 5.5`, `NAME_LABEL_ZOOM_THRESHOLD = 2.4`. Verified on the live snapshot (epoch 23198) at desktop (1440×900) and mobile (390×844) viewports; zoom + label fade-in verified by temp-config screenshot. Reduced motion zeroes the breathe amplitude.
 

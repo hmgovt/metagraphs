@@ -6,7 +6,7 @@ Canonical domain: [metagraphs.live](https://metagraphs.live)
 
 ## Status
 
-Stage 4 — the breathing field. The ~128 Bittensor subnets render as a hero-scale phyllotaxis-by-uid scatter of additively-blended bioluminescent cells filling the full viewport. The BWI Pu-238 two-channel shader (intensity + temperature) is wired end-to-end (D11) — intensity from `emissionShare`, temperature from `realRevenueSignal`. The cold tail of subsidy-farming subnets renders teal; the ~30 active subnets render warm-amber; the honesty axis is the first thing the viewer sees. Microscope zoom (D12) is wired (wheel / pinch / double-click); name labels fade in for active subnets past the zoom threshold. **Stage 5 lands the Yuma-epoch-locked heartbeat + births/deaths + signal refinement** — Stage 4's chassis is the same one Stage 5 plugs the pulse into. See [`docs/handoff/`](docs/handoff/) for the staged implementation plan and [`SPEC.md`](SPEC.md) / [`DECISIONS.md`](DECISIONS.md) for the project's source of truth.
+Stage 4 — the breathing field. The ~128 Bittensor subnets render as a hero-scale phyllotaxis-by-uid scatter of additively-blended bioluminescent cells filling the full viewport. The BWI Pu-238 two-channel shader (intensity + temperature) is wired end-to-end (D11) — intensity from `emissionShare`, temperature from `realRevenueSignal`. The cold tail of subsidy-farming subnets renders vivid cyan; the ~30 active subnets render saturated gold-amber; the honesty axis is the first thing the viewer sees. Microscope zoom (D12) is wired (wheel / pinch / double-click); past the zoom threshold each active subnet's name and **owner-declared logo** (snapshot schema v2, D14) fade in next to the cell. **Stage 5 lands the Yuma-epoch-locked heartbeat + births/deaths + signal refinement** — Stage 4's chassis is the same one Stage 5 plugs the pulse into. See [`docs/handoff/`](docs/handoff/) for the staged implementation plan and [`SPEC.md`](SPEC.md) / [`DECISIONS.md`](DECISIONS.md) for the project's source of truth.
 
 ## Stack
 
@@ -56,7 +56,7 @@ The snapshot is a per-Yuma-epoch (~72 min, ~20/day) capture of Bittensor subnet 
 - **Outputs (on the `data` branch):**
   - `data/network.ndjson` — append-only history, one snapshot per line.
   - `static/network.json` — latest snapshot, the shape the browser fetches.
-  - `static/network.schema.json` — JSON Schema draft 2020-12 contract (mirrored from `main`).
+  - `static/network.schema.json` — JSON Schema draft 2020-12 contract (mirrored from `main`). Schema **v2** as of 2026-06-08 — adds `logoUrl: string | null` per subnet (D14, SPEC §3.8).
   - `static/network-meta.json` — per-endpoint health, source, rolling "as of" window.
 - **Delivery:** the browser will fetch from jsDelivr's GitHub CDN — `https://cdn.jsdelivr.net/gh/hmgovt/metagraphs@data/static/network.json`. URL constants are pinned in [`src/lib/data-source.ts`](src/lib/data-source.ts); the actual fetch lands in Stage 4 alongside the breathing field.
 - **Schema is the contract:** see [`SPEC.md` §7.4](SPEC.md#74-snapshot-schema). Schema-invalid snapshots fail the workflow loudly and leave the previous snapshot in place.
@@ -100,6 +100,8 @@ The Stage 4 breathing field lives under [`src/lib/field/`](src/lib/field/):
 Animation is decoupled from chain time at Stage 4: each cell breathes autonomously at ~6 s with a per-uid random phase offset, so the field looks alive without simulating an epoch pulse the chain hasn't actually emitted. The Yuma-epoch-locked heartbeat lands in Stage 5. `prefers-reduced-motion: reduce` zeroes the breathe amplitude.
 
 Cell name labels: when `camera.zoom > NAME_LABEL_ZOOM_THRESHOLD`, small dim-mono labels fade in under active subnets (`emissionShare > 0`). Only ~30 labels at full zoom — the cold tail stays anonymous because there's nothing to surface but their negative space.
+
+Subnet logos (snapshot schema v2, D14): when the label is visible, a small circular-cropped 14 px logo renders to its left if the snapshot carries a non-null `logoUrl` for that uid. URLs come from Taostats's identity endpoint — owner-declared, not curated. Broken / 404 URLs (one subnet currently registers `https://deprecated.png`) fail silently via `<img onerror>`; the name label stays. `referrerpolicy="no-referrer"` and `loading="lazy"` keep the privacy and bandwidth posture honest.
 
 ## Environment
 

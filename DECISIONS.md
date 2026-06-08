@@ -4,6 +4,23 @@ _A dated log of locked decisions. Newest at top. If a decision needs to change, 
 
 ---
 
+## 2026-06-08 — Snapshot schema v2: owner-declared subnet logos
+
+### D14 — Logos come from Taostats's identity endpoint, plumbed through the snapshot (schema v2)
+
+Subnet logos are real signal — a viewer who zooms into the field should be able to recognise the brands that are the network's productive surface. Two paths were considered and the second discarded:
+
+- **Convention path (rejected).** A deterministic URL pattern (`taostats.io/images/subnets/{uid}.webp`) was identified from Taostats's `metadata` endpoint and documented in a draft §3.8. Probe revealed that pattern does **not** actually serve images — those URLs return the site's SPA 404 HTML. The convention I documented was based on a wrong fact; the §3.8 clause and the browser `<img>` `src` I'd wired against it were reverted in the same session before either reached `main`.
+- **Schema-bump path (taken).** Each subnet owner registers a `logo_url` via Taostats's identity endpoint, and `/api/subnet/identity/v1?limit=512` returns the entire network in **one** bulk call. The original "one call per subnet → blows the 5/min rate budget" objection was wrong — bulk fetch is cheap. The path that's honest about subnet identity is to plumb that URL through the snapshot.
+
+Schema v2 adds `logoUrl: string | null` to `SubnetRow`. The pipeline issues one extra paced call (`fetchSubnetLogos` in [`scripts/fetchers-taostats.ts`](scripts/fetchers-taostats.ts)) and merges results into the orchestrator's SubnetRow array; failures are non-critical (logged + forward-filled from the prior row, never fatal). The Subtensor fallback returns `logoUrl: null` since the chain does not carry owner-declared metadata. The browser store accepts schemaVersion 1 OR 2 during the rollout window between this commit and the first v2 snapshot landing on the `data` branch.
+
+**URLs are not policed.** Owner-declared URLs travel honestly through the snapshot, even when broken or stale — at the time of writing, one subnet (uid 3, "deprecated") registers literally `https://deprecated.png`. The browser handles broken URLs via `<img onerror>`. Curating, rewriting, or hosting our own mirror would be a parallel honesty layer competing with the owner's statement; we don't.
+
+**Rendering posture (§3.8).** Logos render only **next to** the cell name label at zoom past `NAME_LABEL_ZOOM_THRESHOLD`, never on the cell glow itself. The default bioluminescent register is preserved; the microscope reveals identity.
+
+---
+
 ## 2026-06-07 — Hero-scale field corrections (mid-Stage-4 reshape)
 
 Captured during the Stage 4 review conversation, when the first cut of the field shipped as a small constellation of warm dots that conveyed no semantic structure. The product-level critique surfaced the gap: a portrait of an organism cannot be one that the viewer cannot read. These three decisions extend D1, D2, D4, and D6 with the corrections needed to make the field carry meaning at first glance.
