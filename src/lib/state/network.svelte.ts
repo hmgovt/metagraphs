@@ -16,7 +16,16 @@ import { NETWORK_JSON_URL, NETWORK_META_URL } from '$lib/data-source';
 import type { NetworkJson, NetworkMeta } from '$lib/types/network';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const EXPECTED_SCHEMA_VERSION = 1;
+/**
+ * Accepted snapshot schema versions. v1 was the initial release; v2
+ * added `logoUrl` per subnet (SPEC §3.8, 2026-06-07). Both are accepted
+ * during the rollout window between the schema-update commits and the
+ * first v2 snapshot landing on the `data` branch — once jsDelivr is
+ * serving v2 we'll keep accepting v1 too so a future `data`-branch
+ * rollback never breaks the page. Drop v1 here only when the schema
+ * bumps again and we want to force the upgrade.
+ */
+const ACCEPTED_SCHEMA_VERSIONS: ReadonlyArray<number> = [1, 2];
 
 const state = $state<{
 	data: NetworkJson | null;
@@ -64,9 +73,9 @@ export function refresh(): Promise<void> {
 				fetchJson<NetworkJson>(NETWORK_JSON_URL),
 				fetchJson<NetworkMeta>(NETWORK_META_URL)
 			]);
-			if (data.schemaVersion !== EXPECTED_SCHEMA_VERSION) {
+			if (!ACCEPTED_SCHEMA_VERSIONS.includes(data.schemaVersion)) {
 				throw new Error(
-					`Unexpected schemaVersion ${data.schemaVersion} (expected ${EXPECTED_SCHEMA_VERSION}). Browser types are out of sync with static/network.schema.json.`
+					`Unexpected schemaVersion ${data.schemaVersion} (accepted: ${ACCEPTED_SCHEMA_VERSIONS.join(', ')}). Browser types are out of sync with static/network.schema.json.`
 				);
 			}
 			state.data = data;

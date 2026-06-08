@@ -36,7 +36,14 @@
 	let tooltipScreen = $state<{ x: number; y: number } | null>(null);
 
 	// Names visible at zoom — kept in $state so the DOM updates in lockstep.
-	type LabelState = { uid: number; name: string; x: number; y: number; opacity: number };
+	type LabelState = {
+		uid: number;
+		name: string;
+		logoUrl: string | null;
+		x: number;
+		y: number;
+		opacity: number;
+	};
 	let labels = $state<LabelState[]>([]);
 
 	type CellState = {
@@ -46,12 +53,22 @@
 		radius: number;
 		alive: number;
 		name: string | null;
+		logoUrl: string | null;
 		emissionShare: number;
 	};
 
 	const cells: CellState[] = Array.from({ length: MAX_SUBNETS }, (_, uid) => {
 		const [x, y] = positionForUid(uid);
-		return { uid, x, y, radius: R_MIN, alive: 0, name: null, emissionShare: 0 };
+		return {
+			uid,
+			x,
+			y,
+			radius: R_MIN,
+			alive: 0,
+			name: null,
+			logoUrl: null,
+			emissionShare: 0
+		};
 	});
 
 	let applyData: ((d: NetworkJson | null) => void) | null = null;
@@ -186,6 +203,7 @@
 						cell.alive = 0;
 						cell.radius = R_MIN;
 						cell.name = null;
+						cell.logoUrl = null;
 						cell.emissionShare = 0;
 					}
 				} else {
@@ -209,6 +227,9 @@
 						cell.radius = radius;
 						cell.alive = 1;
 						cell.name = subnet.name;
+						// logoUrl was added in snapshot schema v2 — older snapshots
+						// (schemaVersion 1) don't carry the field; treat as null.
+						cell.logoUrl = subnet.logoUrl ?? null;
 						cell.emissionShare = share;
 					}
 					for (let uid = 0; uid < MAX_SUBNETS; uid++) {
@@ -220,6 +241,7 @@
 							cells[uid].radius = R_MIN;
 							cells[uid].alive = 0;
 							cells[uid].name = null;
+							cells[uid].logoUrl = null;
 							cells[uid].emissionShare = 0;
 						}
 					}
@@ -383,6 +405,7 @@
 					next.push({
 						uid,
 						name: cell.name,
+						logoUrl: cell.logoUrl,
 						x: rect.left + ((v.x + 1) / 2) * rect.width,
 						y: rect.top + ((1 - v.y) / 2) * rect.height,
 						opacity: fade
@@ -518,7 +541,23 @@
 
 {#each labels as label (label.uid)}
 	<span class="cell-label" style="left: {label.x}px; top: {label.y}px; opacity: {label.opacity};">
-		{label.name}
+		{#if label.logoUrl}
+			<!--
+				Owner-declared logo per SPEC §3.8 (schema v2). null means the
+				owner has not registered one. Broken owner-CDN URLs (some are
+				stale; one literally points at https://deprecated.png) fail
+				silently via onerror — the name label stays.
+			-->
+			<img
+				class="cell-logo"
+				src={label.logoUrl}
+				alt=""
+				loading="lazy"
+				referrerpolicy="no-referrer"
+				onerror={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+			/>
+		{/if}
+		<span class="cell-name">{label.name}</span>
 	</span>
 {/each}
 
@@ -564,6 +603,23 @@
 		white-space: nowrap;
 		z-index: 5;
 		transition: opacity 200ms ease;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.32rem;
+	}
+
+	.cell-logo {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		object-fit: cover;
+		background: rgba(255, 255, 255, 0.04);
+		box-shadow: 0 0 6px rgba(8, 14, 18, 0.9);
+		flex: 0 0 auto;
+	}
+
+	.cell-name {
+		display: inline-block;
 	}
 
 	.sr-only {
