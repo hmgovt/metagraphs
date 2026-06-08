@@ -24,7 +24,7 @@ import { readFileSync, appendFileSync, existsSync, mkdirSync, writeFileSync } fr
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import { fetchSubnets, redactUrl } from './fetchers-taostats.js';
+import { fetchSubnets, fetchSubnetLogos, pace, redactUrl } from './fetchers-taostats.js';
 import { fetchChainHead, fetchSubnetsFromChain, disconnectApi } from './fetchers-subtensor.js';
 import { applyRealRevenueSignal } from './signal.js';
 import { EPOCH_BLOCKS } from './sources.js';
@@ -89,9 +89,10 @@ function forwardFill(current: SubnetRow[], prior: SubnetRow[] | null): number {
 			'marketCap',
 			'validators',
 			'miners',
-			'registeredAtBlock'
+			'registeredAtBlock',
+			'logoUrl'
 		] as const) {
-			if (row[key] === null && p[key] !== null) {
+			if (row[key] === null && p[key] !== null && p[key] !== undefined) {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				(row as any)[key] = p[key];
 				filled += 1;
@@ -195,6 +196,30 @@ async function main(): Promise<number> {
 			endpoints['taostats:subnets'] = { status: 'failed', reason };
 			notes.push(`Taostats failed: ${reason}`);
 		}
+
+		// Bulk identity (logos) — schema v2 / §3.8. One paced call;
+		// non-critical: failures are logged and the forward-fill rescues
+		// logoUrl from the prior row.
+		if (subnets) {
+			try {
+				await pace();
+				const logos = await fetchSubnetLogos(apiKey);
+				endpoints['taostats:identity'] = {
+					status: 'ok',
+					httpStatus: logos.httpStatus,
+					rowCount: logos.rowCount,
+					url: logos.url
+				};
+				for (const row of subnets) {
+					row.logoUrl = logos.data.get(row.uid) ?? null;
+				}
+			} catch (err) {
+				const reason = err instanceof Error ? err.message : String(err);
+				console.warn(`  Taostats identity failed: ${reason}`);
+				endpoints['taostats:identity'] = { status: 'failed', reason };
+				notes.push(`Taostats identity failed: ${reason} (logoUrl will forward-fill)`);
+			}
+		}
 	}
 
 	// --- Step 4: Subtensor fallback ---
@@ -250,7 +275,7 @@ async function main(): Promise<number> {
 
 	// --- Step 7: assemble row, append NDJSON ---
 	const row: SnapshotRow = {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		asOf,
 		epoch: head.epoch,
 		block: head.block,

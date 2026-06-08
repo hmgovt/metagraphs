@@ -99,7 +99,7 @@ function main(): number {
 	}
 
 	const pivoted: NetworkJson = {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		asOf: last.asOf,
 		epoch: last.epoch,
 		block: last.block,

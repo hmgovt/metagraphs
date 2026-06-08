@@ -34,6 +34,17 @@ export const TAOSTATS_ENDPOINTS = {
 	subnetPool: {
 		path: '/api/dtao/pool/latest/v1',
 		query: { page: '1', limit: '512', order: 'netuid_asc' }
+	},
+	/**
+	 * Bulk subnet identity — owner-declared metadata including
+	 * `logo_url`. One bulk call covers every netuid; carried into the
+	 * snapshot per SPEC §3.8 (schema v2). Returns plenty of fields we
+	 * deliberately don't store (description, summary, tags, discord,
+	 * twitter) — v1 takes only the URL.
+	 */
+	subnetIdentity: {
+		path: '/api/subnet/identity/v1',
+		query: { limit: '512' }
 	}
 } as const;
 

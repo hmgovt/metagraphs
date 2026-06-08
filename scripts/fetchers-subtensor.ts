@@ -170,7 +170,12 @@ export async function fetchSubnetsFromChain(): Promise<SubnetRow[]> {
 			miners: neuronCount,
 			realRevenueSignal: null,
 			signalSource: null,
-			registeredAtBlock
+			registeredAtBlock,
+			// The chain does not carry owner-declared logo URLs (§3.8 is
+			// a Taostats identity-endpoint thing). On the Subtensor
+			// fallback path, logoUrl is always null and forward-fill
+			// rescues it from the prior row.
+			logoUrl: null
 		});
 	}
 
