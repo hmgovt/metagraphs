@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { networkStore } from '$lib/state/network.svelte';
-	import type { NetworkJson } from '$lib/types/network';
+	import type { NetworkJson, SubnetRow } from '$lib/types/network';
 	import { positionForUid } from './positions';
 	import { vertexShader, fragmentShader } from './shaders';
 	import { temperatureFor } from './temperature';
@@ -23,7 +23,12 @@
 		NAME_LABEL_ZOOM_THRESHOLD,
 		ZOOM_TWEEN_MS
 	} from './config';
-	import SubnetTooltip from './SubnetTooltip.svelte';
+	import { BloomController, type TerminalState, type SigilState } from './bloom/controller';
+	import type { CellSnapshot } from './bloom/fields';
+	import { SEGMENTS, type SegmentId } from './bloom/segments';
+	import { CASCADE_THRESHOLD } from './bloom/config';
+	import BloomTerminal from './bloom/BloomTerminal.svelte';
+	import BloomSigil from './bloom/BloomSigil.svelte';
 
 	type Props = {
 		ariaLabel?: string;
@@ -31,9 +36,6 @@
 	let { ariaLabel = 'Network field of subnets' }: Props = $props();
 
 	let container = $state<HTMLDivElement | undefined>();
-	let tooltipUid = $state<number | null>(null);
-	let tooltipName = $state<string | null>(null);
-	let tooltipScreen = $state<{ x: number; y: number } | null>(null);
 
 	// Names visible at zoom — kept in $state so the DOM updates in lockstep.
 	type LabelState = {
@@ -45,6 +47,11 @@
 		opacity: number;
 	};
 	let labels = $state<LabelState[]>([]);
+
+	// Bloom render state — driven by BloomController.update() each frame.
+	let bloomTerminals = $state<TerminalState[]>([]);
+	let bloomSigils = $state<SigilState[]>([]);
+	let focusedUid = $state<number | null>(null);
 
 	type CellState = {
 		uid: number;
@@ -75,20 +82,26 @@
 	let projectCell: ((uid: number) => { x: number; y: number } | null) | null = null;
 	let zoomToCell: ((uid: number) => void) | null = null;
 
-	function clearTooltip() {
-		tooltipUid = null;
-		tooltipName = null;
-		tooltipScreen = null;
-	}
+	// Forwarded into the bloom orchestrator at frame time.
+	const cellSnapshots: CellSnapshot[] = Array.from({ length: MAX_SUBNETS }, (_, uid) => {
+		const [x, y] = positionForUid(uid);
+		return {
+			uid,
+			x,
+			y,
+			alive: 0 as 0 | 1,
+			emissionShare: 0,
+			realRevenueSignal: null,
+			daysSinceRegistration: null,
+			emissionShareDelta24h: null,
+			realRevenueSignalDelta24h: null
+		};
+	});
 
-	function openTooltip(uid: number) {
-		if (!projectCell) return;
-		const screen = projectCell(uid);
-		if (!screen) return;
-		const cell = cells[uid];
-		tooltipUid = uid;
-		tooltipName = cell.name;
-		tooltipScreen = screen;
+	let bloom: BloomController | null = null;
+
+	function hoverSigil(uid: number, segmentId: SegmentId | null) {
+		bloom?.hoverSigil(uid, segmentId);
 	}
 
 	$effect(() => {
@@ -142,6 +155,13 @@
 			const aPosition = new Float32Array(MAX_SUBNETS * 2);
 			const aRadius = new Float32Array(MAX_SUBNETS);
 			const aIntensity = new Float32Array(MAX_SUBNETS);
+			/**
+			 * Bloom adds a per-frame boost to the focused cell's intensity (see
+			 * SPEC §3.9). aIntensityBase mirrors what applyData writes; per-frame
+			 * we recombine `aIntensity = aIntensityBase + bloomBoost` so the
+			 * boost can ramp in and decay without losing the snapshot baseline.
+			 */
+			const aIntensityBase = new Float32Array(MAX_SUBNETS);
 			const aTemperature = new Float32Array(MAX_SUBNETS);
 			const aPhase = new Float32Array(MAX_SUBNETS);
 			const aAlive = new Float32Array(MAX_SUBNETS);
@@ -151,6 +171,7 @@
 				aPosition[uid * 2] = cell.x;
 				aPosition[uid * 2 + 1] = cell.y;
 				aRadius[uid] = R_MIN;
+				aIntensityBase[uid] = INTENSITY_BASELINE;
 				aIntensity[uid] = INTENSITY_BASELINE;
 				aTemperature[uid] = TEMPERATURE_NEUTRAL;
 				aPhase[uid] = ((uid * PHI) % 1) * Math.PI * 2;
@@ -190,14 +211,20 @@
 			const mesh = new THREE.Mesh(geometry, material);
 			scene.add(mesh);
 
+			// Bloom orchestrator (SPEC §3.9). Lives alongside the cell field;
+			// adds its own filament Mesh registry on the same scene.
+			bloom = new BloomController({ THREE, scene, camera }, mount, reducedMotion);
+
 			const presentScratch = new Uint8Array(MAX_SUBNETS);
 
 			function applyDataImpl(data: NetworkJson | null) {
 				if (!data) {
 					for (let uid = 0; uid < MAX_SUBNETS; uid++) {
 						const cell = cells[uid];
+						const snap = cellSnapshots[uid];
 						aAlive[uid] = 0;
 						aRadius[uid] = R_MIN;
+						aIntensityBase[uid] = INTENSITY_BASELINE;
 						aIntensity[uid] = INTENSITY_BASELINE;
 						aTemperature[uid] = TEMPERATURE_NEUTRAL;
 						cell.alive = 0;
@@ -205,7 +232,14 @@
 						cell.name = null;
 						cell.logoUrl = null;
 						cell.emissionShare = 0;
+						snap.alive = 0;
+						snap.emissionShare = 0;
+						snap.realRevenueSignal = null;
+						snap.daysSinceRegistration = null;
+						snap.emissionShareDelta24h = null;
+						snap.realRevenueSignalDelta24h = null;
 					}
+					bloom?.setSubnets([]);
 				} else {
 					presentScratch.fill(0);
 					for (const subnet of data.subnets) {
@@ -219,6 +253,7 @@
 						const temperature = temperatureFor(subnet);
 
 						aRadius[subnet.uid] = radius;
+						aIntensityBase[subnet.uid] = intensity;
 						aIntensity[subnet.uid] = intensity;
 						aTemperature[subnet.uid] = temperature;
 						aAlive[subnet.uid] = 1;
@@ -231,10 +266,19 @@
 						// (schemaVersion 1) don't carry the field; treat as null.
 						cell.logoUrl = subnet.logoUrl ?? null;
 						cell.emissionShare = share;
+
+						const snap = cellSnapshots[subnet.uid];
+						snap.alive = 1;
+						snap.emissionShare = share;
+						snap.realRevenueSignal = subnet.realRevenueSignal ?? null;
+						snap.daysSinceRegistration = subnet.daysSinceRegistration ?? null;
+						snap.emissionShareDelta24h = subnet.emissionShareDelta24h ?? null;
+						snap.realRevenueSignalDelta24h = subnet.realRevenueSignalDelta24h ?? null;
 					}
 					for (let uid = 0; uid < MAX_SUBNETS; uid++) {
 						if (presentScratch[uid] === 0) {
 							aRadius[uid] = R_MIN;
+							aIntensityBase[uid] = INTENSITY_BASELINE;
 							aIntensity[uid] = INTENSITY_BASELINE;
 							aTemperature[uid] = TEMPERATURE_NEUTRAL;
 							aAlive[uid] = 0;
@@ -243,9 +287,18 @@
 							cells[uid].name = null;
 							cells[uid].logoUrl = null;
 							cells[uid].emissionShare = 0;
+							const snap = cellSnapshots[uid];
+							snap.alive = 0;
+							snap.emissionShare = 0;
+							snap.realRevenueSignal = null;
+							snap.daysSinceRegistration = null;
+							snap.emissionShareDelta24h = null;
+							snap.realRevenueSignalDelta24h = null;
 						}
 					}
+					bloom?.setSubnets(data.subnets as SubnetRow[]);
 				}
+				bloom?.setCells(cellSnapshots);
 				aRadiusAttr.needsUpdate = true;
 				aIntensityAttr.needsUpdate = true;
 				aTemperatureAttr.needsUpdate = true;
@@ -333,7 +386,9 @@
 					clampCameraPosition();
 				}
 				camera.updateProjectionMatrix();
-				clearTooltip();
+				// Zooming changes mode threshold — keep the bloom orchestrator in sync.
+				const newMode = camera.zoom < CASCADE_THRESHOLD ? 'cascade' : 'deliberate';
+				bloom?.setMode(newMode);
 			}
 
 			type ZoomTween = {
@@ -414,17 +469,42 @@
 				labels = next;
 			}
 
+			function currentMode(): 'cascade' | 'deliberate' {
+				return camera.zoom < CASCADE_THRESHOLD ? 'cascade' : 'deliberate';
+			}
+
 			function onPointerMove(e: PointerEvent) {
 				const uid = pickAtPointer(e.clientX, e.clientY);
 				canvas.style.cursor = uid !== null ? 'pointer' : 'default';
+				if (uid === focusedUid) {
+					// Keep the controller aware of the live mode in case zoom changed mid-hover.
+					if (uid !== null) bloom?.setMode(currentMode());
+					return;
+				}
+				if (uid !== null) {
+					bloom?.hoverEnter(uid, currentMode());
+					focusedUid = uid;
+				} else {
+					bloom?.hoverLeave();
+					focusedUid = null;
+				}
+			}
+
+			function onPointerLeave() {
+				if (focusedUid !== null) {
+					bloom?.hoverLeave();
+					focusedUid = null;
+				}
+				canvas.style.cursor = 'default';
 			}
 
 			function onClick(e: MouseEvent) {
+				// In Mode B (microscope zoom), a click on the cell forces the
+				// full cascade — the "summon the cinematic" affordance from D16.
+				// In Mode A, hovering already cascades; click is a no-op.
 				const uid = pickAtPointer(e.clientX, e.clientY);
-				if (uid === null) {
-					clearTooltip();
-				} else {
-					openTooltip(uid);
+				if (uid !== null && currentMode() === 'deliberate') {
+					bloom?.forceCascade(uid);
 				}
 			}
 
@@ -439,7 +519,6 @@
 
 			function onWheel(e: WheelEvent) {
 				e.preventDefault();
-				// Pinch on macOS trackpad fires wheel with ctrlKey + small deltaY.
 				const delta = e.deltaY;
 				if (delta === 0) return;
 				const factor = delta < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
@@ -448,22 +527,44 @@
 
 			function onKeydown(e: KeyboardEvent) {
 				if (e.key === 'Escape') {
-					if (camera.zoom > MIN_ZOOM + 1e-3) {
+					if (focusedUid !== null) {
+						bloom?.hoverLeave();
+						focusedUid = null;
+					} else if (camera.zoom > MIN_ZOOM + 1e-3) {
 						resetZoom();
-					} else {
-						clearTooltip();
 					}
+					return;
 				}
 				if (e.key === '0' || e.key === 'Home') {
-					resetZoom();
+					if (focusedUid !== null) {
+						bloom?.forceCascade(focusedUid);
+					} else {
+						resetZoom();
+					}
+					return;
+				}
+				if (e.key === 'f' && focusedUid !== null) {
+					bloom?.forceCascade(focusedUid);
+					return;
+				}
+				// 1–8: ignite individual segments on the focused cell (keyboard
+				// parity with Mode B sigil targeting; SPEC §3.9).
+				const idx = '12345678'.indexOf(e.key);
+				if (idx !== -1 && focusedUid !== null) {
+					const segment = SEGMENTS[idx];
+					if (segment) bloom?.igniteSegment(focusedUid, segment.id);
 				}
 			}
 
 			function onScroll() {
-				clearTooltip();
+				if (focusedUid !== null) {
+					bloom?.hoverLeave();
+					focusedUid = null;
+				}
 			}
 
 			canvas.addEventListener('pointermove', onPointerMove);
+			canvas.addEventListener('pointerleave', onPointerLeave);
 			canvas.addEventListener('click', onClick);
 			canvas.addEventListener('dblclick', onDblClick);
 			canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -473,14 +574,27 @@
 			const start = performance.now();
 			let rafId: number | null = null;
 			function frame() {
-				material.uniforms.uTime.value = (performance.now() - start) / 1000;
+				const tSec = (performance.now() - start) / 1000;
+				material.uniforms.uTime.value = tSec;
 				applyTweenFrame();
+
+				// Bloom tick — runs even when no cell is focused so terminals
+				// can fade out and decay cleanly.
+				if (bloom) {
+					const result = bloom.update(tSec, cellSnapshots);
+					// Apply per-cell brightness boost on top of the per-snapshot
+					// baseline. set() is fast at MAX_SUBNETS = 256.
+					aIntensity.set(aIntensityBase);
+					for (const [uid, boost] of result.cellBoost) {
+						if (uid >= 0 && uid < MAX_SUBNETS) aIntensity[uid] += boost;
+					}
+					aIntensityAttr.needsUpdate = true;
+					bloomTerminals = result.terminals;
+					bloomSigils = result.sigils;
+				}
+
 				renderer.render(scene, camera);
 				updateLabels();
-				if (tooltipUid !== null && projectCell) {
-					const s = projectCell(tooltipUid);
-					if (s) tooltipScreen = s;
-				}
 				rafId = requestAnimationFrame(frame);
 			}
 			frame();
@@ -498,7 +612,10 @@
 					camera.top = 1;
 					camera.bottom = -1;
 					camera.updateProjectionMatrix();
-					clearTooltip();
+					if (focusedUid !== null) {
+						bloom?.hoverLeave();
+						focusedUid = null;
+					}
 				}
 			});
 			resizeObserver.observe(mount);
@@ -507,11 +624,14 @@
 				if (rafId !== null) cancelAnimationFrame(rafId);
 				resizeObserver.disconnect();
 				canvas.removeEventListener('pointermove', onPointerMove);
+				canvas.removeEventListener('pointerleave', onPointerLeave);
 				canvas.removeEventListener('click', onClick);
 				canvas.removeEventListener('dblclick', onDblClick);
 				canvas.removeEventListener('wheel', onWheel);
 				window.removeEventListener('keydown', onKeydown);
 				window.removeEventListener('scroll', onScroll);
+				bloom?.dispose();
+				bloom = null;
 				geometry.dispose();
 				material.dispose();
 				plane.dispose();
@@ -525,7 +645,9 @@
 
 		return () => {
 			disposed = true;
-			clearTooltip();
+			bloomTerminals = [];
+			bloomSigils = [];
+			focusedUid = null;
 			labels = [];
 			cleanup?.();
 		};
@@ -561,20 +683,20 @@
 	</span>
 {/each}
 
-{#if tooltipUid !== null && tooltipScreen !== null}
-	<SubnetTooltip
-		uid={tooltipUid}
-		name={tooltipName}
-		screen={tooltipScreen}
-		onClose={clearTooltip}
-	/>
-{/if}
+{#each bloomTerminals as terminal (terminal.id)}
+	<BloomTerminal {terminal} />
+{/each}
+
+{#each bloomSigils as sigil (sigil.id)}
+	<BloomSigil {sigil} onHover={hoverSigil} />
+{/each}
 
 <p class="sr-only" aria-live="polite">
 	{#if networkStore.data}
 		Bittensor network field, {networkStore.data.totalSubnets} subnets, source {networkStore.data
-			.source}, as of {networkStore.data.asOf}. Use the scroll wheel to zoom; double-click a cell to
-		zoom to it; press Escape or 0 to reset.
+			.source}, as of {networkStore.data.asOf}. Hover a cell to bloom its identity, purpose,
+		emission, signal, age, trend, network, and links. Scroll to zoom; double-click a cell to focus
+		it; press Escape, 0, or Home to reset.
 	{:else if networkStore.error}
 		Bittensor network field, data unreachable.
 	{:else}
