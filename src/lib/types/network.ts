@@ -19,6 +19,13 @@ export interface SubnetRow {
 	realRevenueSignal: number | null;
 	signalSource: 'taostats' | 'computed:v1' | 'computed:v1-low-confidence' | null;
 	registeredAtBlock: number | null;
+	/**
+	 * Owner-declared logo URL (snapshot schema v2; SPEC §3.8).
+	 * Optional on the type because v1 snapshots in the wild don't carry the
+	 * field — the browser store accepts schemaVersion 1 OR 2 during the
+	 * rollout window, and `subnet.logoUrl ?? null` is the safe read.
+	 */
+	logoUrl?: string | null;
 }
 
 export interface LifecycleEvent {
@@ -32,7 +39,13 @@ export interface NetworkEvents {
 }
 
 export interface NetworkJson {
-	schemaVersion: 1;
+	/**
+	 * Schema version. v1 was the initial release; v2 added `logoUrl` per
+	 * subnet (2026-06-07). The browser accepts either during the rollout
+	 * window between the schema-update commits and the first v2 snapshot
+	 * landing on the `data` branch.
+	 */
+	schemaVersion: 1 | 2;
 	asOf: string;
 	epoch: number;
 	block: number;

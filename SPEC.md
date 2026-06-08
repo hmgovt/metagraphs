@@ -2,7 +2,7 @@
 
 _Source of truth for what Metagraphs is and how it behaves. If implementation drifts from this document, the implementation is wrong — unless the drift surfaces a real bug in the spec, in which case stop and update the spec before coding around it._
 
-Last revised: 2026-06-07 (Stage 4 hero-scale reshape — §3.1 honesty colour wired at Stage 4 per D11, §3.7 microscope zoom per D12, §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+Last revised: 2026-06-07 (Stage 4 hero-scale reshape — §3.1 honesty colour wired at Stage 4 per D11, §3.7 microscope zoom per D12, §3.8 owner-declared subnet logos, §7.4 schema bumped to v2 for `logoUrl`, §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
 
 ---
 
@@ -146,6 +146,24 @@ D12 permits zooming **into** the portrait. It does not permit panning across it 
 - **Camera position is clamped** so that no zoom + offset combination ever lets the field circle leave the viewport. The organism is always present.
 - **Cell name labels** fade in past `NAME_LABEL_ZOOM_THRESHOLD` (~2.4) as small dim-mono DOM elements positioned by projecting cell coordinates to screen each frame. Labels are shown only for cells with `emissionShare > 0` — the meaningful ~30, not the cold-tail 98. Curiosity is rewarded with detail, not denied.
 
+### 3.8 Subnet logos (owner-declared, schema v2)
+
+Subnet logos render only as part of the cell name label (see §3.7), only at zoom past the label threshold, **never on the cell glow itself**. Including a logo on the unzoomed bioluminescent cell would tip the field into "sponsor wall" register, which violates D2 — the cell must stay an organism at the default view.
+
+Logos are **owner-declared**: each subnet owner registers a `logo_url` via Taostats's identity endpoint. The snapshot pipeline issues **one bulk call** per Yuma epoch (`/api/subnet/identity/v1?limit=200`) that returns all subnets in a single response — that's the per-snapshot rate cost, and it's amortised the same way the existing per-epoch Taostats calls are. The resulting URLs are stored in `network.json` as `logoUrl: string | null` per subnet (§7.4, schema v2).
+
+**Why a schema bump.** A deterministic-CDN approach (a single URL pattern derivable from `uid`) was considered first and rejected after probe: Taostats's `metadata` endpoint returns a URL pattern (`taostats.io/images/subnets/{uid}.webp`) that does not actually serve images — those URLs return the site's SPA 404 HTML. The owner-declared identity URLs are the only authentic source; carrying them through the snapshot is honest data architecture rather than a derived convention.
+
+**Rendering rules:**
+
+- `<img loading="lazy" referrerpolicy="no-referrer" alt="" onerror="...">` next to the name label, ~14 px circular crop.
+- A `null` `logoUrl` means the owner has not registered a logo; the name renders without an icon. Never a broken-image icon, never a placeholder graphic.
+- An owner-CDN URL that 404s (some are stale — one subnet literally points at `https://deprecated.png`) fails silently via `onerror`; the name label stays.
+- `referrerpolicy="no-referrer"` so loading a logo never leaks the visitor's `metagraphs.live` referrer to owner CDNs.
+- `loading="lazy"` so cold-tail-only viewers (who never zoom in) pay zero network cost for logos.
+
+**Aesthetic caveat.** Owner-declared logos vary wildly in art style, aspect ratio, transparency handling, and brand quality. The 14 px circular crop + no-color-correct rendering accepts that variance honestly rather than trying to flatten it — the field is a portrait of the network, not a curated marketing surface.
+
 ## 4. Aesthetic rule (hard guardrail)
 
 **Every blockchain visualiser on earth is glowing blue dots connected by lines on black. That look is failure.** If a screenshot of Metagraphs reads as "crypto network graph," it is a bug.
@@ -211,6 +229,7 @@ Subnet-level **aggregates only**, one row per Yuma epoch:
 - market cap
 - validator / miner counts
 - real-revenue signal (Taostats direct field where available; otherwise computed per §3.3.1)
+- owner-declared logo URL (schema v2, added 2026-06-07 — Taostats `/api/subnet/identity/v1?limit=200`, one bulk call per epoch; see §3.8)
 - registration / deregistration events (derived in the pivot step by diffing the subnet set against the previous NDJSON row — not fetched)
 
 Full per-subnet weight matrices (`subnet.W`) are heavy and belong to the Phase-2 micro dive — **do not pull them at v1**.
@@ -227,8 +246,8 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 
 ```jsonc
 {
-	"schemaVersion": 1,
-	"asOf": "2026-06-06T02:14:00Z", // ISO 8601 UTC at snapshot time
+	"schemaVersion": 2,
+	"asOf": "2026-06-07T16:14:00Z", // ISO 8601 UTC at snapshot time
 	"epoch": 1234567, // chain epoch index (block height / 360)
 	"block": 444444120, // block height at snapshot time
 	"stale": false, // true when the snapshot couldn't refresh and is being re-served
@@ -245,7 +264,8 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 			"miners": 256,
 			"realRevenueSignal": null, // 0..1 or null (see §3.3.1)
 			"signalSource": null, // "taostats" | "computed:v1" | "computed:v1-low-confidence" | null
-			"registeredAtBlock": 4123000 // null if not provided
+			"registeredAtBlock": 4123000, // null if not provided
+			"logoUrl": "https://owner.example/logo.png" // null when owner has not registered one (added in v2; see §3.8)
 		}
 		// … one entry per active subnet, sorted by uid ascending
 	],
@@ -261,9 +281,13 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 - `subnets` is an **array sorted by uid ascending**, not an object map. The breathing field iterates positions; lookups happen by index. This shape is load-bearing for the macro view's positional rendering — keep it stable.
 - Numeric fields use `null` (not `undefined`, not `0`, not `"-"`) for missing data, so the renderer can branch on `=== null` for the labelled neutral state per §3.3.
 - `realRevenueSignal` and `signalSource` are produced per §3.3.1 — the formula is the source of truth, this schema is its contract.
+- `logoUrl` is the owner-declared URL from Taostats's identity endpoint (per §3.8). `null` when the owner has not registered one. The pipeline does **not** verify the URL is reachable; broken / 404 / typo URLs (one current subnet literally registers `https://deprecated.png`) are the owner's statement and travel honestly through the snapshot. The browser handles broken URLs via `<img onerror>`.
 - `events.registrations` and `events.deregistrations` may be empty arrays (no registrations this epoch is the steady state).
 
-**Versioning.** Any field added or removed bumps `schemaVersion` and updates `network.schema.json` in the same commit. If implementation forces a schema change, **update this section first**, then code.
+**Versioning.** Any field added or removed bumps `schemaVersion` and updates `network.schema.json` in the same commit. If implementation forces a schema change, **update this section first**, then code. **History:**
+
+- **v1** (Stage 2): initial fields per the shape above.
+- **v2** (2026-06-07, Stage 4 reshape): adds `logoUrl: string | null` per subnet (§3.8). Browser reads must accept either v1 or v2 during the rollout window between schema-update commits and the first v2 snapshot landing on the `data` branch.
 
 ## 8. Stack
 
