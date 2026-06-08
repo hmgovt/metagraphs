@@ -4,6 +4,36 @@ _A dated log of locked decisions. Newest at top. If a decision needs to change, 
 
 ---
 
+## 2026-06-08 — Stage 5: the bloom
+
+### D15 — The bloom replaces the click-detail panel (the detail surface is in-canvas, not a separate UI region)
+
+The v1 stub said "subnet detail coming soon · phase 2" on click. Phase 2 originally meant a panel-shaped detail surface — a rectangle of text floating over the field. Building it would have surfaced the data, but it would also have admitted that the field is a launcher rather than the product. Mid-Stage-5 conversation surfaced the alternative: the cell **blooms** — eight filaments unspool from the cell surface as a coronal mass ejection, twist as the plasma cools, and settle into an amber afterglow in which the text becomes legible. The detail surface stays in the field's physical metaphor instead of breaking out of it.
+
+This is not decoration. The filament's **length** encodes magnitude, the **twist** encodes volatility, the **curvature** encodes economic gravity from neighbouring high-emission cells, and the **cooling profile** encodes signal honesty (clean cool-down for high-signal, noisy/flickering for subsidy-farming). Text terminals at filament tips give the precise values for the careful reader; the bloom anatomy gives the legible-at-a-glance impression. A viewer who has hovered ten cells starts reading the next one before any text resolves.
+
+Operational consequences: `src/lib/field/SubnetTooltip.svelte` is deleted. The bloom lives in `src/lib/field/bloom/` and mounts as a Three.js scene addition alongside the existing field. Full physics, choreography, and rendering details are spec'd in [`docs/handoff/05-bloom.md`](docs/handoff/05-bloom.md); §3.9 of the spec carries the executive summary.
+
+### D16 — Hover is the primary interaction; click stays only for terminal links
+
+The bloom is cinematic, and cinematic moments are best discovered, not summoned. Hover triggers the bloom; click only follows a link inside an exposed terminal (GitHub, Twitter, Discord, website). This is a genuine ergonomic shift from the v1 "click → panel" model — D1's "clickable cell is a no-op stub" is superseded for v1 by D16's "hover cell → bloom; click filament terminal → external link." The micro-view weight-matrix dive remains Phase 2.
+
+At default zoom (`camera.zoom < CASCADE_THRESHOLD ≈ 2.0`), individual segments cannot be reliably targeted with the cursor, so a hover triggers a full cascade — all eight filaments ignite in clock order with a 90 ms stagger, fully readable at ~3 s (the cinematic mode). At microscope zoom, eight sigils appear around the cell; hovering an individual sigil ignites only that segment's filament (the deliberate analysis mode). Keyboard parity: `Tab` focuses the nearest cell; `1`–`8` ignite by segment; `0` cascades; `Escape` decays.
+
+Non-hover devices (touch) read the cursor-equivalent as the first tap; a second tap on a filament terminal navigates the link. `prefers-reduced-motion: reduce` collapses the lifecycle to ignition (50 ms) → afterglow (immediate). No moving plasma front, no cooling animation, same data — the bloom is dramatic and must not trap users with vestibular sensitivity.
+
+### D17 — Snapshot schema v3: full subnet identity + pre-computed deltas
+
+The bloom is information-dense. Surfacing the eight segments requires data that is not in schema v2: a one-or-two-sentence subnet **description**, owner-declared **social links** (GitHub, Twitter, Discord, website), **`daysSinceRegistration`** (computed in the pivot from `registeredAtBlock` and the snapshot block — cheaper to do once in CI than 128× per page render), and **deltas** of emission share, real-revenue signal, and rank against the 24 h / 7-epoch historical windows.
+
+Schema v3 adds all of these to `SubnetRow`. The identity fields come from the same Taostats bulk endpoint already used for `logoUrl` (`/api/subnet/identity/v1?limit=512` — one paced call, the same as v2); `fetchSubnetLogos` is renamed `fetchSubnetIdentity` and returns the full identity record per uid. Deltas are computed by the orchestrator against the running NDJSON history; the first ~20 epochs after the v3 cutover lack the 24 h window and the deltas surface as `null` — the bloom's trend filament reads `null` as "no signal yet" and renders neutrally.
+
+The browser store accepts schemaVersion 1, 2, OR 3 during the rollout window — same pattern as v2. The pivot's `normaliseSubnetForSchemaV3` backfills nulls for any v1/v2 NDJSON row pivoted under v3, so the schema-upgrade re-fetch flow (the `needsSchemaUpgrade` check in `scripts/fetch-snapshot.ts`, already proven on the v1→v2 cutover) just works for v3 with `CURRENT_SCHEMA_VERSION = 3`.
+
+URL fields are owner-declared and **not policed**, same posture as v2 logos. Broken links travel honestly through the snapshot; the browser handles them via `<a target="_blank" rel="noreferrer">` plus a `referrerpolicy="no-referrer"` discipline on any logo image inside terminals. Curating, rewriting, or HEAD-checking owner URLs would tilt the data architecture from "honest pipe" to "editorial layer" — that's a separate honesty contract competing with the owner's statement, and we don't build it.
+
+---
+
 ## 2026-06-08 — Snapshot schema v2: owner-declared subnet logos
 
 ### D14 — Logos come from Taostats's identity endpoint, plumbed through the snapshot (schema v2)

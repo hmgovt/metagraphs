@@ -2,7 +2,7 @@
 
 _Source of truth for what Metagraphs is and how it behaves. If implementation drifts from this document, the implementation is wrong — unless the drift surfaces a real bug in the spec, in which case stop and update the spec before coding around it._
 
-Last revised: 2026-06-07 (Stage 4 hero-scale reshape — §3.1 honesty colour wired at Stage 4 per D11, §3.7 microscope zoom per D12, §3.8 owner-declared subnet logos, §7.4 schema bumped to v2 for `logoUrl`, §10 status). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+Last revised: 2026-06-08 (Stage 5 — §3.9 the bloom, §7.4 schema v3 adds full subnet identity + deltas + `daysSinceRegistration` per D15/D16/D17, §10 stage rescope). Tracks the locked decisions in [`DECISIONS.md`](DECISIONS.md). Current implementation progress in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
 
 ---
 
@@ -40,7 +40,7 @@ The breathing field of ~128 subnets as the hero. Each subnet is a single cell wh
 - **Pulse phase** — synced to the Yuma epoch heartbeat (see §3.2).
 - **Lifecycle state** — ignition for new registrations, death for deregistrations.
 
-A cell is clickable, but in v1 the click opens a no-op placeholder reading "subnet detail coming soon" — the micro view is Phase 2 (see §6).
+**On hover, the cell blooms** — see §3.9. Eight filaments unspool from the cell along curved coronal arcs deformed by the surrounding fields, twist as the plasma cools, and settle into an amber afterglow in which the cell's identity, purpose, emission, signal, age, trend, network, and links become legible. The hover bloom replaces the v1 click-stub placeholder (D15); a click on a filament terminal navigates to the linked URL (D16). The single-subnet weight-matrix micro view remains a Phase 2 feature (see §6).
 
 **Positional layout (v1 commitment, Stage 4).** Each subnet's screen position is a deterministic function of its `uid` via Vogel sunflower phyllotaxis: `angle = uid × goldenAngle`, `radius = √(uid / MAX_SUBNETS) × R_field`. Subnet 0 (root) sits at the centre; new high-uid subnets ignite at the rim. The cap is a config constant, not a magic number — `MAX_SUBNETS = 256` from day one, so the future 256-cap expansion does not scramble positions, even though only ~128 uids are lit today. Cell positions are stable across snapshots: deregistered uids leave dark slots, registrations re-light their original slot at the next epoch the chain assigns that uid.
 
@@ -164,6 +164,44 @@ Logos are **owner-declared**: each subnet owner registers a `logo_url` via Taost
 
 **Aesthetic caveat.** Owner-declared logos vary wildly in art style, aspect ratio, transparency handling, and brand quality. The 14 px circular crop + no-color-correct rendering accepts that variance honestly rather than trying to flatten it — the field is a portrait of the network, not a curated marketing surface.
 
+### 3.9 The bloom (D15, D16; Stage 5)
+
+**On hover, a cell blooms.** Eight filaments unspool from the cell's surface like a coronal mass ejection — ignited at a magnetic footpoint, ejected outward along a helically-twisted plasma channel, deformed by the surrounding fields, then cooling through cyan and amber to a steady ionized afterglow in which the text becomes legible. Each filament is one **segment** of the subnet's anatomy: identity, purpose, emission, signal, age, trend, network, links. The eight segments are the same across every cell, at the same clock-face angles, so the spatial geography is learnable.
+
+The bloom replaces the v1 click-stub detail panel (D15). The detail surface is in-canvas (filament) plus HTML overlay (text terminal); it is not a separate UI region. The bloom is the data — length, twist, curvature, and cooling profile encode magnitude, volatility, economic gravity, and signal honesty respectively. The text terminals are the precise readout layer for the exact numbers.
+
+**The four fields.** A filament's path is computed once at ignition from the cell's state and four surrounding fields:
+
+- **Emission field $E(p)$** — scalar 1/r² potential summed over cells, weighted by `emissionShare`. Its gradient bends filament termini toward dominant neighbouring emitters (economic lensing).
+- **Honesty field $H(c)$** — the `realRevenueSignal` per cell, lifted directly from §3.3. Sets the plasma cooling profile — high-signal cells cool cleanly; low-signal cells cool noisily with visible flicker.
+- **Time field $T(c)$** — `daysSinceRegistration` per cell, computed in the pivot from `registeredAtBlock` and the snapshot block. Sets filament stiffness and helical-twist frequency: new cells are frantic; old cells are stately.
+- **$tao field $\Phi(c)$** — directional 2D vector, net 24 h $tao flow (`realRevenue − emission`) projected toward the emission-weighted field centre. Rotates the entire bloom orientation up to ~15°: earners orient inward, drainers orient outward.
+
+**The eight segments** (clock positions; identical across cells, so geography becomes muscle memory):
+
+| Angle | Segment   | Carries                                                          |
+|-------|-----------|------------------------------------------------------------------|
+| 12:00 | Identity  | Name, UID, logo                                                  |
+| 1:30  | Purpose   | Description from Taostats identity endpoint                      |
+| 3:00  | Emission  | Current emission share %, TAO/day                                |
+| 4:30  | Signal    | Real-revenue signal narrative                                    |
+| 6:00  | Age       | Registered N days ago + cohort                                   |
+| 7:30  | Trend     | 24 h / 7-epoch emission delta with arrow                         |
+| 9:00  | Network   | Validator + miner counts                                         |
+| 10:30 | Links     | GitHub, Twitter, Discord, website — clickable terminals          |
+
+**Lifecycle.** Per-filament: ignition (150 ms) → eruption (650 ms moving plasma front from cell to terminus) → apex (400 ms peak twist) → cooling (1000 ms cyan → amber → red, text fades in at amber) → afterglow (steady, sustained while hovered). Decay (600 ms fade) when the cursor leaves.
+
+**Two interaction modes.** At default zoom (`camera.zoom < CASCADE_THRESHOLD ≈ 2.0`), cells are too small to target individual segments precisely: hovering anywhere on a cell triggers a **cascade** — all eight filaments ignite in clock order with a 90 ms stagger, fully readable at ~3 s (the cinematic mode). At microscope zoom (`camera.zoom ≥ CASCADE_THRESHOLD`), eight **sigils** appear at clock positions around the cell; hovering an individual sigil ignites only that segment's filament (the deliberate mode). Keyboard parity: `Tab` focuses the nearest cell; `1`–`8` ignite by segment; `0` triggers a cascade; `Escape` decays.
+
+**Text terminal legibility.** Each terminal renders its text with a multi-stop diffuse halo — a tight dark backing kills overlap with cell glow, a mid-radius softens the backing edge, and an outer warm glow restores the afterglow halo. Names and values must stay legible against any underlying cell colour. The Identity segment's name renders one font weight heavier with a 50%-larger dark backing — it is the most critical to scan-readability.
+
+**Reduced motion.** `prefers-reduced-motion: reduce` collapses the lifecycle to ignition (50 ms) → afterglow (immediate). Same data, no animation.
+
+**Performance.** A filament's Bezier path is computed **once** at ignition; per-frame animation only advances the moving front, plasma cooling, twist phase, and alpha — no per-frame physics re-solve. Maximum 32 simultaneous filaments globally (FIFO decay past cap) keeps the budget bounded.
+
+The full bloom physics, choreography, rendering details, calibration knobs, and segment data flow are specified in [`docs/handoff/05-bloom.md`](docs/handoff/05-bloom.md). When implementation drifts from the brief, the brief is the source of truth for the bloom; this section is the executive summary.
+
 ## 4. Aesthetic rule (hard guardrail)
 
 **Every blockchain visualiser on earth is glowing blue dots connected by lines on black. That look is failure.** If a screenshot of Metagraphs reads as "crypto network graph," it is a bug.
@@ -246,8 +284,8 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 
 ```jsonc
 {
-	"schemaVersion": 2,
-	"asOf": "2026-06-07T16:14:00Z", // ISO 8601 UTC at snapshot time
+	"schemaVersion": 3,
+	"asOf": "2026-06-08T16:14:00Z", // ISO 8601 UTC at snapshot time
 	"epoch": 1234567, // chain epoch index (block height / 360)
 	"block": 444444120, // block height at snapshot time
 	"stale": false, // true when the snapshot couldn't refresh and is being re-served
@@ -265,7 +303,19 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 			"realRevenueSignal": null, // 0..1 or null (see §3.3.1)
 			"signalSource": null, // "taostats" | "computed:v1" | "computed:v1-low-confidence" | null
 			"registeredAtBlock": 4123000, // null if not provided
-			"logoUrl": "https://owner.example/logo.png" // null when owner has not registered one (added in v2; see §3.8)
+			"logoUrl": "https://owner.example/logo.png", // null when owner has not registered one (added in v2; see §3.8)
+			// v3 (Stage 5; see §3.9 and D17) — full subnet identity + deltas.
+			"description": "Inference subnet for X.", // 1–2 sentence purpose, null when owner hasn't registered one
+			"github": "https://github.com/owner/repo", // owner-declared, null when absent
+			"twitter": "https://twitter.com/handle",
+			"discord": "https://discord.gg/invite",
+			"website": "https://owner.example/",
+			"daysSinceRegistration": 47.3, // computed in pivot from (block - registeredAtBlock) / 7200
+			// Deltas across snapshot history; null when insufficient history (first ~20 epochs after v3 cutover).
+			"emissionShareDelta24h": -0.0008,
+			"emissionShareDelta7epoch": 0.0001,
+			"realRevenueSignalDelta24h": 0.012,
+			"rankDelta24h": 3
 		}
 		// … one entry per active subnet, sorted by uid ascending
 	],
@@ -288,6 +338,7 @@ The contract the rest of the pipeline (and ultimately the browser) builds agains
 
 - **v1** (Stage 2): initial fields per the shape above.
 - **v2** (2026-06-07, Stage 4 reshape): adds `logoUrl: string | null` per subnet (§3.8). Browser reads must accept either v1 or v2 during the rollout window between schema-update commits and the first v2 snapshot landing on the `data` branch.
+- **v3** (2026-06-08, Stage 5 — the bloom): adds full subnet identity (`description`, `github`, `twitter`, `discord`, `website`), `daysSinceRegistration` (computed in pivot), and pre-computed deltas (`emissionShareDelta24h`, `emissionShareDelta7epoch`, `realRevenueSignalDelta24h`, `rankDelta24h`) per subnet. The deltas are optional at schema level because the first ~20 epochs after the v3 cutover lack the 24 h history window to compute them; the bloom reads `null` deltas as "no signal yet" and renders the trend filament neutrally. The browser store accepts schemaVersion 1, 2, or 3 during rollout — once v3 NDJSON exists, prior-version rows are pivoted into v3 shape via `normaliseSubnetForSchemaV3` (defensive backfill, same pattern as v2).
 
 ## 8. Stack
 
@@ -319,7 +370,8 @@ The build is sequenced as eight stages, each ending in a stop-and-confirm bounda
 | 2     | `02-data-pipeline.md`       | Taostats snapshot cron + `network.json` schema (per-Yuma-epoch, data branch + jsDelivr)                              |
 | 3     | `03-scaffold.md`            | First real components + browser fetch of jsDelivr-served network.json + visual verification on staging — ✅ complete |
 | 4     | `04-field.md`               | Hero field (Three.js, phyllotaxis, honesty colour, microscope zoom) — ✅ complete                                    |
-| 5     | `05-heartbeat-lifecycle.md` | Yuma-epoch-locked heartbeat + births/deaths + signal refinement (honesty colour landed at Stage 4, see D11)          |
-| 6     | `06-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                                                           |
-| 7     | `07-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                                                                  |
-| 8     | `08-tests-signoff.md`       | Integration tests, browser verification, signoff                                                                     |
+| 5     | `05-bloom.md`               | The bloom — coronal-flare hover detail per §3.9 (D15/D16/D17, schema v3)                                             |
+| 6     | `06-heartbeat-lifecycle.md` | Yuma-epoch-locked heartbeat + births/deaths + signal refinement (was Stage 5; rescoped to follow the bloom)          |
+| 7     | `07-delegate-panel.md`      | Delegate-to-power-this (partner validator)                                                                           |
+| 8     | `08-time-and-sound.md`      | Time-lapse default + scrubber + opt-in sonification                                                                  |
+| 9     | `09-tests-signoff.md`       | Integration tests, browser verification, signoff                                                                     |
