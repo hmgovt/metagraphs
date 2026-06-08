@@ -18,14 +18,15 @@ import type { NetworkJson, NetworkMeta } from '$lib/types/network';
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 /**
  * Accepted snapshot schema versions. v1 was the initial release; v2
- * added `logoUrl` per subnet (SPEC §3.8, 2026-06-07). Both are accepted
- * during the rollout window between the schema-update commits and the
- * first v2 snapshot landing on the `data` branch — once jsDelivr is
- * serving v2 we'll keep accepting v1 too so a future `data`-branch
- * rollback never breaks the page. Drop v1 here only when the schema
- * bumps again and we want to force the upgrade.
+ * added `logoUrl` per subnet (SPEC §3.8, 2026-06-07); v3 added full
+ * subnet identity (description, social links) + computed
+ * daysSinceRegistration + deltas, for the bloom (SPEC §3.9, 2026-06-08).
+ * All three are accepted during the rollout window; once v3 is the
+ * dominant shape on the data branch we keep v1/v2 here too so a future
+ * rollback never breaks the page. Drop older versions only when the
+ * schema bumps again and we want to force the upgrade.
  */
-const ACCEPTED_SCHEMA_VERSIONS: ReadonlyArray<number> = [1, 2];
+const ACCEPTED_SCHEMA_VERSIONS: ReadonlyArray<number> = [1, 2, 3];
 
 const state = $state<{
 	data: NetworkJson | null;

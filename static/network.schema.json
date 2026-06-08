@@ -19,7 +19,7 @@
 	"properties": {
 		"schemaVersion": {
 			"type": "integer",
-			"const": 2
+			"const": 3
 		},
 		"asOf": {
 			"type": "string",
@@ -84,7 +84,13 @@
 				"realRevenueSignal",
 				"signalSource",
 				"registeredAtBlock",
-				"logoUrl"
+				"logoUrl",
+				"description",
+				"github",
+				"twitter",
+				"discord",
+				"website",
+				"daysSinceRegistration"
 			],
 			"properties": {
 				"uid": { "type": "integer", "minimum": 0 },
@@ -126,6 +132,47 @@
 				"logoUrl": {
 					"type": ["string", "null"],
 					"description": "Owner-declared logo URL from Taostats /api/subnet/identity (schema v2; SPEC §3.8). Not validated for reachability."
+				},
+				"description": {
+					"type": ["string", "null"],
+					"description": "Owner-declared 1–2 sentence subnet purpose (schema v3; SPEC §3.9). null when owner hasn't registered one."
+				},
+				"github": {
+					"type": ["string", "null"],
+					"description": "Owner-declared GitHub URL (schema v3). null when absent. Not validated for reachability."
+				},
+				"twitter": {
+					"type": ["string", "null"],
+					"description": "Owner-declared Twitter/X URL (schema v3). null when absent."
+				},
+				"discord": {
+					"type": ["string", "null"],
+					"description": "Owner-declared Discord URL (schema v3). null when absent."
+				},
+				"website": {
+					"type": ["string", "null"],
+					"description": "Owner-declared website URL (schema v3). null when absent."
+				},
+				"daysSinceRegistration": {
+					"type": ["number", "null"],
+					"minimum": 0,
+					"description": "Computed in pivot from (block - registeredAtBlock) / 7200 (~12 s blocks). null when registeredAtBlock is null."
+				},
+				"emissionShareDelta24h": {
+					"type": ["number", "null"],
+					"description": "currentShare − share24hAgo (~20 epochs ago). null when insufficient history (first ~20 epochs after schema v3 cutover)."
+				},
+				"emissionShareDelta7epoch": {
+					"type": ["number", "null"],
+					"description": "currentShare − share7epochsAgo (~8 h). null when insufficient history."
+				},
+				"realRevenueSignalDelta24h": {
+					"type": ["number", "null"],
+					"description": "currentSignal − signal24hAgo. null when insufficient history or either side is null."
+				},
+				"rankDelta24h": {
+					"type": ["integer", "null"],
+					"description": "Change in emission-share rank vs ~24 h ago (positive = improved rank). null when insufficient history."
 				}
 			}
 		},
