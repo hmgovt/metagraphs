@@ -45,9 +45,13 @@ jobs:
 
           if git fetch origin data 2>/dev/null; then
             git switch -t origin/data 2>/dev/null || git switch data
-            # Pull main's schema onto data so validation always runs against
-            # the latest spec-pinned contract. No-op when unchanged.
-            git checkout main -- static/network.schema.json
+            # Sync from main onto the data branch's working tree so the
+            # pipeline always runs against current code AND validates
+            # against current schema. The data branch only commits
+            # artefacts (data/network.ndjson, static/network*.json) —
+            # source paths synced here are reset every run and never
+            # committed to data.
+            git checkout main -- scripts/ static/network.schema.json
           else
             echo "::notice title=Bootstrap::data branch does not exist; creating from main."
             git switch -c data
