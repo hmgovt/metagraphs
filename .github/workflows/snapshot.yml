@@ -67,6 +67,7 @@ jobs:
           npm run snapshot:validate
 
       - name: Commit and push
+        id: commit
         run: |
           set -euo pipefail
 
@@ -78,6 +79,7 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "::notice title=No-op::Snapshot pipeline ran but no files changed (epoch dedup or identical pivot). Exiting clean."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -88,3 +90,21 @@ jobs:
 
           git commit -m "chore(snap): epoch ${EPOCH} at ${STAMP}${STALE} (block ${BLOCK})"
           git push -u origin data
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Purge jsDelivr edge cache
+        # The browser fetches network.json + network-meta.json from jsDelivr's
+        # GitHub-branch CDN, which caches branch resources for 12 h by default.
+        # Without an explicit purge, a fresh snapshot (or schema bump) can sit
+        # behind a stale edge for hours. Gated on the commit step having
+        # actually pushed — no-op runs leave the cache alone.
+        if: steps.commit.outputs.pushed == 'true'
+        run: |
+          set -euo pipefail
+          for path in static/network.json static/network-meta.json; do
+            echo "Purging gh/hmgovt/metagraphs@data/${path}"
+            curl -sS --fail --max-time 15 \
+              "https://purge.jsdelivr.net/gh/hmgovt/metagraphs@data/${path}" \
+              || echo "::warning title=Purge::jsDelivr purge for ${path} did not succeed (CDN will refresh on its own TTL)."
+            echo
+          done
