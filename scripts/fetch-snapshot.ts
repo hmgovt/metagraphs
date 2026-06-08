@@ -24,7 +24,7 @@ import { readFileSync, appendFileSync, existsSync, mkdirSync, writeFileSync } fr
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import { fetchSubnets, fetchSubnetLogos, pace, redactUrl } from './fetchers-taostats.js';
+import { fetchSubnets, fetchSubnetIdentity, pace, redactUrl } from './fetchers-taostats.js';
 import { fetchChainHead, fetchSubnetsFromChain, disconnectApi } from './fetchers-subtensor.js';
 import { applyRealRevenueSignal } from './signal.js';
 import { EPOCH_BLOCKS } from './sources.js';
@@ -90,7 +90,12 @@ function forwardFill(current: SubnetRow[], prior: SubnetRow[] | null): number {
 			'validators',
 			'miners',
 			'registeredAtBlock',
-			'logoUrl'
+			'logoUrl',
+			'description',
+			'github',
+			'twitter',
+			'discord',
+			'website'
 		] as const) {
 			if (row[key] === null && p[key] !== null && p[key] !== undefined) {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,6 +105,92 @@ function forwardFill(current: SubnetRow[], prior: SubnetRow[] | null): number {
 		}
 	}
 	return filled;
+}
+
+/** Blocks per day at ~12 s/block. Used for daysSinceRegistration in v3. */
+const BLOCKS_PER_DAY = 7200;
+/** Epoch windows for v3 deltas (SPEC §3.9). ~20 epochs ≈ 24 h; 7 epochs ≈ 8 h. */
+const DELTA_EPOCHS_24H = 20;
+const DELTA_EPOCHS_7E = 7;
+
+/**
+ * Scan the NDJSON history from newest to oldest; return the most recent
+ * row whose epoch is ≤ targetEpoch. Used to find the "24 h ago" anchor
+ * for v3 deltas. Returns null when no such row exists (history too
+ * short or first ~20 epochs after v3 cutover).
+ */
+function findEpochRow(history: SnapshotRow[], targetEpoch: number): SnapshotRow | null {
+	for (let i = history.length - 1; i >= 0; i--) {
+		if (history[i].epoch <= targetEpoch) return history[i];
+	}
+	return null;
+}
+
+/**
+ * v3 derived fields (SPEC §3.9):
+ *  - daysSinceRegistration per subnet from (headBlock - registeredAtBlock) / 7200
+ *  - 24 h and 7-epoch emission-share deltas
+ *  - 24 h real-revenue-signal delta
+ *  - 24 h emission-rank delta (positive = improved rank, ie moved up the list)
+ *
+ * Deltas are null when insufficient history exists or either window-side
+ * is null. Browser reads null deltas as "no signal yet" and renders the
+ * trend filament neutrally.
+ */
+function applyDerivedV3(
+	rows: SubnetRow[],
+	headBlock: number,
+	headEpoch: number,
+	history: SnapshotRow[]
+): void {
+	for (const r of rows) {
+		if (r.registeredAtBlock === null || r.registeredAtBlock < 0) {
+			r.daysSinceRegistration = null;
+		} else {
+			const days = Math.max(0, (headBlock - r.registeredAtBlock) / BLOCKS_PER_DAY);
+			r.daysSinceRegistration = Math.round(days * 10) / 10;
+		}
+	}
+
+	const row24h = findEpochRow(history, headEpoch - DELTA_EPOCHS_24H);
+	const row7e = findEpochRow(history, headEpoch - DELTA_EPOCHS_7E);
+	const by24h = row24h ? new Map(row24h.subnets.map((s) => [s.uid, s])) : null;
+	const by7e = row7e ? new Map(row7e.subnets.map((s) => [s.uid, s])) : null;
+
+	// Rank by emissionShare descending; nulls last.
+	function rankMap(list: SubnetRow[]): Map<number, number> {
+		const sorted = [...list].sort((a, b) => {
+			const ax = a.emissionShare ?? -1;
+			const bx = b.emissionShare ?? -1;
+			return bx - ax;
+		});
+		const m = new Map<number, number>();
+		sorted.forEach((r, i) => m.set(r.uid, i));
+		return m;
+	}
+	const currentRanks = rankMap(rows);
+	const prevRanks = row24h ? rankMap(row24h.subnets) : null;
+
+	for (const r of rows) {
+		const p24 = by24h?.get(r.uid);
+		const p7 = by7e?.get(r.uid);
+		if (p24 && r.emissionShare !== null && p24.emissionShare !== null) {
+			r.emissionShareDelta24h = r.emissionShare - p24.emissionShare;
+		}
+		if (p7 && r.emissionShare !== null && p7.emissionShare !== null) {
+			r.emissionShareDelta7epoch = r.emissionShare - p7.emissionShare;
+		}
+		if (p24 && r.realRevenueSignal !== null && p24.realRevenueSignal !== null) {
+			r.realRevenueSignalDelta24h = r.realRevenueSignal - p24.realRevenueSignal;
+		}
+		if (prevRanks) {
+			const cur = currentRanks.get(r.uid);
+			const prev = prevRanks.get(r.uid);
+			if (cur !== undefined && prev !== undefined) {
+				r.rankDelta24h = prev - cur;
+			}
+		}
+	}
 }
 
 function writeMeta(meta: SnapshotHealth): void {
@@ -164,7 +255,7 @@ async function main(): Promise<number> {
 	// even if the chain epoch hasn't advanced — otherwise the page
 	// would render an outdated shape (missing new fields) for up to a
 	// full Yuma epoch (~72 min) after the upgrade.
-	const CURRENT_SCHEMA_VERSION = 2;
+	const CURRENT_SCHEMA_VERSION = 3;
 	const lastSchemaVersion =
 		lastRow && typeof lastRow.schemaVersion === 'number' ? lastRow.schemaVersion : 0;
 	const needsSchemaUpgrade = !!lastRow && lastSchemaVersion < CURRENT_SCHEMA_VERSION;
@@ -214,27 +305,38 @@ async function main(): Promise<number> {
 			notes.push(`Taostats failed: ${reason}`);
 		}
 
-		// Bulk identity (logos) — schema v2 / §3.8. One paced call;
-		// non-critical: failures are logged and the forward-fill rescues
-		// logoUrl from the prior row.
+		// Bulk identity — schema v2 logos (§3.8) + schema v3 full identity
+		// (§3.9). One paced call returns logo URL, description, social
+		// links per uid. Non-critical: failures are logged and forward-fill
+		// rescues these fields from the prior row.
 		if (subnets) {
 			try {
 				await pace();
-				const logos = await fetchSubnetLogos(apiKey);
+				const identity = await fetchSubnetIdentity(apiKey);
 				endpoints['taostats:identity'] = {
 					status: 'ok',
-					httpStatus: logos.httpStatus,
-					rowCount: logos.rowCount,
-					url: logos.url
+					httpStatus: identity.httpStatus,
+					rowCount: identity.rowCount,
+					url: identity.url
 				};
 				for (const row of subnets) {
-					row.logoUrl = logos.data.get(row.uid) ?? null;
+					const rec = identity.data.get(row.uid);
+					if (rec) {
+						row.logoUrl = rec.logoUrl;
+						row.description = rec.description;
+						row.github = rec.github;
+						row.twitter = rec.twitter;
+						row.discord = rec.discord;
+						row.website = rec.website;
+					}
 				}
 			} catch (err) {
 				const reason = err instanceof Error ? err.message : String(err);
 				console.warn(`  Taostats identity failed: ${reason}`);
 				endpoints['taostats:identity'] = { status: 'failed', reason };
-				notes.push(`Taostats identity failed: ${reason} (logoUrl will forward-fill)`);
+				notes.push(
+					`Taostats identity failed: ${reason} (logoUrl + description + links will forward-fill)`
+				);
 			}
 		}
 	}
@@ -290,9 +392,12 @@ async function main(): Promise<number> {
 	// --- Step 6: real-revenue signal (Tier C where Tier A absent) ---
 	applyRealRevenueSignal(subnets, head.block, historyRows);
 
+	// --- Step 6b: v3 derived fields (daysSinceRegistration + deltas) ---
+	applyDerivedV3(subnets, head.block, head.epoch, historyRows);
+
 	// --- Step 7: assemble row, append NDJSON ---
 	const row: SnapshotRow = {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		asOf,
 		epoch: head.epoch,
 		block: head.block,
