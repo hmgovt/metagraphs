@@ -1,7 +1,7 @@
 {
-  "lastRun": "2026-06-08T02:05:34.667Z",
-  "epoch": 23218,
-  "block": 8358824,
+  "lastRun": "2026-06-08T08:20:00.505Z",
+  "epoch": 23224,
+  "block": 8360696,
   "source": "taostats",
   "stale": false,
   "endpoints": {
@@ -13,6 +13,12 @@
       "httpStatus": 200,
       "rowCount": 129,
       "url": "https://api.taostats.io/api/subnet/latest/v1?page=1&limit=512&order=netuid_asc + https://api.taostats.io/api/dtao/pool/latest/v1?page=1&limit=512&order=netuid_asc"
+    },
+    "taostats:identity": {
+      "status": "ok",
+      "httpStatus": 200,
+      "rowCount": 129,
+      "url": "https://api.taostats.io/api/subnet/identity/v1?limit=512"
     }
   },
   "asOfWindow": [
@@ -34,7 +40,10 @@
     "2026-06-07T19:50:31.007Z",
     "2026-06-07T21:17:52.456Z",
     "2026-06-07T22:33:10.875Z",
-    "2026-06-08T02:05:34.667Z"
+    "2026-06-08T02:05:34.667Z",
+    "2026-06-08T08:20:00.505Z"
   ],
-  "notes": []
+  "notes": [
+    "Re-fetching epoch 23224: last NDJSON row is schemaVersion 1, pipeline emits 2."
+  ]
 }

@@ -15,10 +15,12 @@ export interface SubnetRow {
 	realRevenueSignal: number | null;
 	signalSource: 'taostats' | 'computed:v1' | 'computed:v1-low-confidence' | null;
 	registeredAtBlock: number | null;
+	/** Owner-declared logo URL (schema v2). null when owner has not registered one. */
+	logoUrl: string | null;
 }
 
 export interface SnapshotRow {
-	schemaVersion: 1;
+	schemaVersion: 2;
 	asOf: string;
 	epoch: number;
 	block: number;

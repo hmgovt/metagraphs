@@ -219,6 +219,11 @@ function mapPoolRow(raw: Record<string, unknown>): PoolPartial {
  * High-level: fetch both endpoints, merge by uid, normalise emission
  * into a 0..1 share, and return SubnetRow[] sorted by uid ascending.
  * Two paced calls per snapshot.
+ *
+ * Note: this returns SubnetRow[] without `logoUrl` populated — the
+ * identity endpoint is fetched separately by `fetchSubnetLogos()` and
+ * merged in the orchestrator (so the call sequencing + pacing remain
+ * explicit at the top level).
  */
 export async function fetchSubnets(apiKey: string): Promise<FetchResult<SubnetRow[]>> {
 	const opsCfg = TAOSTATS_ENDPOINTS.subnetLatest;
@@ -250,7 +255,8 @@ export async function fetchSubnets(apiKey: string): Promise<FetchResult<SubnetRo
 				miners: o.miners,
 				realRevenueSignal: o.taostatsSignal,
 				signalSource: o.taostatsSignal === null ? null : 'taostats',
-				registeredAtBlock: o.registeredAtBlock
+				registeredAtBlock: o.registeredAtBlock,
+				logoUrl: null
 			};
 		})
 		.sort((a, b) => a.uid - b.uid);
@@ -261,5 +267,41 @@ export async function fetchSubnets(apiKey: string): Promise<FetchResult<SubnetRo
 		httpStatus: opsResp.httpStatus,
 		rowCount: rows.length,
 		url: `${opsResp.redactedUrl} + ${poolResp.redactedUrl}`
+	};
+}
+
+/**
+ * Bulk subnet identity — one call returns every netuid plus
+ * owner-declared metadata. We only consume `logo_url` here per
+ * SPEC §3.8 (schema v2). Returns a Map keyed by uid; missing
+ * entries default to null at the caller.
+ *
+ * URLs are *not* HEAD-validated — broken / 404 / stale owner URLs
+ * (a current example is uid 3's "https://deprecated.png") travel
+ * honestly through the snapshot and are handled by the browser's
+ * `<img onerror>` fallback. The pipeline does NOT police owners.
+ */
+export async function fetchSubnetLogos(
+	apiKey: string
+): Promise<FetchResult<Map<number, string | null>>> {
+	const cfg = TAOSTATS_ENDPOINTS.subnetIdentity;
+	const resp = await fetchList(apiKey, cfg.path, cfg.query, 'subnet/identity/v1');
+
+	const map = new Map<number, string | null>();
+	for (const r of resp.list) {
+		const row = r as Record<string, unknown>;
+		const uid = intOrNull(row.netuid, row.uid, row.subnet_id);
+		if (uid === null) continue;
+		const logo = str(row.logo_url, row.logoUrl);
+		map.set(uid, logo);
+	}
+
+	const withLogos = [...map.values()].filter((v) => v !== null).length;
+	console.log(`  → ${map.size} identities (${withLogos} with logos)`);
+	return {
+		data: map,
+		httpStatus: resp.httpStatus,
+		rowCount: map.size,
+		url: resp.redactedUrl
 	};
 }
