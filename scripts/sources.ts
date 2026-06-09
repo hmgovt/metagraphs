@@ -37,10 +37,9 @@ export const TAOSTATS_ENDPOINTS = {
 	},
 	/**
 	 * Bulk subnet identity — owner-declared metadata including
-	 * `logo_url`. One bulk call covers every netuid; carried into the
-	 * snapshot per SPEC §3.8 (schema v2). Returns plenty of fields we
-	 * deliberately don't store (description, summary, tags, discord,
-	 * twitter) — v1 takes only the URL.
+	 * `logo_url`, `description`, social links. One bulk call covers every
+	 * netuid; carried into the snapshot per SPEC §3.8 (schema v2 logos)
+	 * and §3.9 (schema v3 full identity for the bloom).
 	 */
 	subnetIdentity: {
 		path: '/api/subnet/identity/v1',

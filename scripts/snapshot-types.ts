@@ -17,10 +17,27 @@ export interface SubnetRow {
 	registeredAtBlock: number | null;
 	/** Owner-declared logo URL (schema v2). null when owner has not registered one. */
 	logoUrl: string | null;
+	/** v3 (SPEC §3.9, the bloom) — owner-declared identity. null when absent. */
+	description: string | null;
+	github: string | null;
+	twitter: string | null;
+	discord: string | null;
+	website: string | null;
+	/** v3 — computed in pivot from (block - registeredAtBlock) / 7200 (~12 s/block). */
+	daysSinceRegistration: number | null;
+	/**
+	 * v3 — pre-computed deltas vs NDJSON history. null when insufficient
+	 * history (first ~20 epochs after v3 cutover, or either window-side
+	 * is null).
+	 */
+	emissionShareDelta24h: number | null;
+	emissionShareDelta7epoch: number | null;
+	realRevenueSignalDelta24h: number | null;
+	rankDelta24h: number | null;
 }
 
 export interface SnapshotRow {
-	schemaVersion: 2;
+	schemaVersion: 3;
 	asOf: string;
 	epoch: number;
 	block: number;

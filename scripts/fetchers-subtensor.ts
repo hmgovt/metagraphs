@@ -171,11 +171,24 @@ export async function fetchSubnetsFromChain(): Promise<SubnetRow[]> {
 			realRevenueSignal: null,
 			signalSource: null,
 			registeredAtBlock,
-			// The chain does not carry owner-declared logo URLs (§3.8 is
-			// a Taostats identity-endpoint thing). On the Subtensor
-			// fallback path, logoUrl is always null and forward-fill
-			// rescues it from the prior row.
-			logoUrl: null
+			// The chain does not carry owner-declared metadata (§3.8 logos
+			// and §3.9 identity both live on Taostats's identity endpoint).
+			// On the Subtensor fallback path, all identity fields are null
+			// and forward-fill rescues them from the prior row.
+			logoUrl: null,
+			description: null,
+			github: null,
+			twitter: null,
+			discord: null,
+			website: null,
+			// daysSinceRegistration is computed by the orchestrator after
+			// the chain head is known; we leave it null here.
+			daysSinceRegistration: null,
+			// Deltas are computed by the orchestrator from NDJSON history.
+			emissionShareDelta24h: null,
+			emissionShareDelta7epoch: null,
+			realRevenueSignalDelta24h: null,
+			rankDelta24h: null
 		});
 	}
 

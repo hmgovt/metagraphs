@@ -77,12 +77,12 @@ function ensureSubnetSort(subnets: SubnetRow[]): SubnetRow[] {
  * Normalise SubnetRow shape to match the currently-pinned schema before
  * the pivot writes static/network.json. This is the safety net for
  * schemaVersion transitions: when the NDJSON's last row was written by
- * a prior pipeline version that didn't carry every v2-required field
- * (e.g. v1 NDJSON rows pre-2026-06-08 don't have `logoUrl`), the pivot
- * backfills the field with a defensible default so validation passes.
+ * a prior pipeline version that didn't carry every required field
+ * (e.g. v1 rows lack `logoUrl`, v2 rows lack `description` etc.), the
+ * pivot backfills with a defensible default so validation passes.
  *
- * The defensible default for every nullable v2+ field is `null` — the
- * §3.3 "labelled neutral state" contract. A null here is the honest
+ * The defensible default for every nullable v2/v3 field is `null` —
+ * the §3.3 "labelled neutral state" contract. A null here is the honest
  * statement "this snapshot's data source does not provide this field
  * yet"; the next snapshot run on the new pipeline version will fill it
  * with real data.
@@ -92,6 +92,24 @@ function normaliseSubnetForSchemaV2(s: SubnetRow): SubnetRow {
 		...s,
 		// v2 backfill (SPEC §3.8): older NDJSON rows pre-date the field.
 		logoUrl: s.logoUrl ?? null
+	};
+}
+
+function normaliseSubnetForSchemaV3(s: SubnetRow): SubnetRow {
+	const v2 = normaliseSubnetForSchemaV2(s);
+	return {
+		...v2,
+		// v3 backfill (SPEC §3.9): older NDJSON rows pre-date these fields.
+		description: v2.description ?? null,
+		github: v2.github ?? null,
+		twitter: v2.twitter ?? null,
+		discord: v2.discord ?? null,
+		website: v2.website ?? null,
+		daysSinceRegistration: v2.daysSinceRegistration ?? null,
+		emissionShareDelta24h: v2.emissionShareDelta24h ?? null,
+		emissionShareDelta7epoch: v2.emissionShareDelta7epoch ?? null,
+		realRevenueSignalDelta24h: v2.realRevenueSignalDelta24h ?? null,
+		rankDelta24h: v2.rankDelta24h ?? null
 	};
 }
 
@@ -121,14 +139,14 @@ function main(): number {
 	}
 
 	const pivoted: NetworkJson = {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		asOf: last.asOf,
 		epoch: last.epoch,
 		block: last.block,
 		stale: last.stale,
 		source: last.source,
 		totalSubnets: last.subnets.length,
-		subnets: ensureSubnetSort(last.subnets).map(normaliseSubnetForSchemaV2),
+		subnets: ensureSubnetSort(last.subnets).map(normaliseSubnetForSchemaV3),
 		events: deriveEvents(last, prev)
 	};
 

@@ -220,10 +220,10 @@ function mapPoolRow(raw: Record<string, unknown>): PoolPartial {
  * into a 0..1 share, and return SubnetRow[] sorted by uid ascending.
  * Two paced calls per snapshot.
  *
- * Note: this returns SubnetRow[] without `logoUrl` populated — the
- * identity endpoint is fetched separately by `fetchSubnetLogos()` and
- * merged in the orchestrator (so the call sequencing + pacing remain
- * explicit at the top level).
+ * Note: this returns SubnetRow[] without identity fields populated —
+ * the identity endpoint is fetched separately by `fetchSubnetIdentity()`
+ * and merged in the orchestrator (so the call sequencing + pacing
+ * remain explicit at the top level).
  */
 export async function fetchSubnets(apiKey: string): Promise<FetchResult<SubnetRow[]>> {
 	const opsCfg = TAOSTATS_ENDPOINTS.subnetLatest;
@@ -256,7 +256,20 @@ export async function fetchSubnets(apiKey: string): Promise<FetchResult<SubnetRo
 				realRevenueSignal: o.taostatsSignal,
 				signalSource: o.taostatsSignal === null ? null : 'taostats',
 				registeredAtBlock: o.registeredAtBlock,
-				logoUrl: null
+				logoUrl: null,
+				// v3 — identity fields are merged in by fetchSubnetIdentity later in the orchestrator.
+				description: null,
+				github: null,
+				twitter: null,
+				discord: null,
+				website: null,
+				// v3 — computed in the orchestrator pivot from registeredAtBlock + block.
+				daysSinceRegistration: null,
+				// v3 — computed in the orchestrator from NDJSON history.
+				emissionShareDelta24h: null,
+				emissionShareDelta7epoch: null,
+				realRevenueSignalDelta24h: null,
+				rankDelta24h: null
 			};
 		})
 		.sort((a, b) => a.uid - b.uid);
@@ -270,34 +283,55 @@ export async function fetchSubnets(apiKey: string): Promise<FetchResult<SubnetRo
 	};
 }
 
+export interface SubnetIdentityRecord {
+	logoUrl: string | null;
+	description: string | null;
+	github: string | null;
+	twitter: string | null;
+	discord: string | null;
+	website: string | null;
+}
+
 /**
  * Bulk subnet identity — one call returns every netuid plus
- * owner-declared metadata. We only consume `logo_url` here per
- * SPEC §3.8 (schema v2). Returns a Map keyed by uid; missing
- * entries default to null at the caller.
+ * owner-declared metadata: logo URL, description, social links.
+ * Per SPEC §3.8 (schema v2 logos) and §3.9 (schema v3 full identity for
+ * the bloom). Returns a Map keyed by uid; missing entries default to a
+ * record of all-null at the caller.
  *
  * URLs are *not* HEAD-validated — broken / 404 / stale owner URLs
  * (a current example is uid 3's "https://deprecated.png") travel
  * honestly through the snapshot and are handled by the browser's
- * `<img onerror>` fallback. The pipeline does NOT police owners.
+ * `<img onerror>` fallback (logos) or by leaving the link visibly broken
+ * in the bloom's Links terminal (the owner's statement, not the
+ * pipeline's responsibility). The pipeline does NOT police owners.
  */
-export async function fetchSubnetLogos(
+export async function fetchSubnetIdentity(
 	apiKey: string
-): Promise<FetchResult<Map<number, string | null>>> {
+): Promise<FetchResult<Map<number, SubnetIdentityRecord>>> {
 	const cfg = TAOSTATS_ENDPOINTS.subnetIdentity;
 	const resp = await fetchList(apiKey, cfg.path, cfg.query, 'subnet/identity/v1');
 
-	const map = new Map<number, string | null>();
+	const map = new Map<number, SubnetIdentityRecord>();
 	for (const r of resp.list) {
 		const row = r as Record<string, unknown>;
 		const uid = intOrNull(row.netuid, row.uid, row.subnet_id);
 		if (uid === null) continue;
-		const logo = str(row.logo_url, row.logoUrl);
-		map.set(uid, logo);
+		map.set(uid, {
+			logoUrl: str(row.logo_url, row.logoUrl),
+			description: str(row.description, row.summary, row.about),
+			github: str(row.github_url, row.githubUrl, row.github, row.repo_url),
+			twitter: str(row.twitter_url, row.twitterUrl, row.twitter, row.x_url),
+			discord: str(row.discord_url, row.discordUrl, row.discord),
+			website: str(row.website, row.url, row.homepage)
+		});
 	}
 
-	const withLogos = [...map.values()].filter((v) => v !== null).length;
-	console.log(`  → ${map.size} identities (${withLogos} with logos)`);
+	const withLogos = [...map.values()].filter((v) => v.logoUrl !== null).length;
+	const withDescription = [...map.values()].filter((v) => v.description !== null).length;
+	console.log(
+		`  → ${map.size} identities (${withLogos} with logos, ${withDescription} with descriptions)`
+	);
 	return {
 		data: map,
 		httpStatus: resp.httpStatus,
