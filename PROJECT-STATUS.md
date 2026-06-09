@@ -2,11 +2,30 @@
 
 _Snapshot of where Metagraphs is right now. Update at the end of every stage and whenever a stage prompt is amended. Source of truth for spec is [`SPEC.md`](SPEC.md); for decisions, [`DECISIONS.md`](DECISIONS.md); for stage prompts, [`docs/handoff/`](docs/handoff/)._
 
-Last updated: 2026-06-08.
+Last updated: 2026-06-09.
 
 ---
 
 ## Current phase
+
+**Stage 5 — The bloom.** 🔧 In progress. The cinematic detail surface per [SPEC §3.9](SPEC.md#39-the-bloom-d15-d16-stage-5). Hover a cell → eight filaments unspool from its surface along curved coronal arcs deformed by the surrounding fields, twist as the plasma cools, settle into amber afterglow legible text. Three decisions land in this stage:
+
+- **D15** — bloom replaces the v1 click-detail stub. Detail surface stays inside the field's physical metaphor instead of breaking out into a panel.
+- **D16** — hover is primary; click survives only for terminal links. Mode A cascade at default zoom, Mode B sigil-targeting at microscope zoom. Keyboard parity for 1–8 ignite + `0`/`f` cascade.
+- **D17** — snapshot schema v3 adds owner-declared description + social links + computed daysSinceRegistration + four 24h/7-epoch deltas. `fetchSubnetIdentity` renamed from `fetchSubnetLogos` and extracts the full identity record per uid; pipeline `CURRENT_SCHEMA_VERSION` bumps to 3 and the existing `needsSchemaUpgrade` re-fetch flow auto-rolls the cutover.
+
+Code landed:
+
+- Pure modules in [`src/lib/field/bloom/`](src/lib/field/bloom/): `config.ts` (calibration), `segments.ts` (the eight canonical segments — Identity / Purpose / Emission / Signal / Age / Trend / Network / Links at clock positions 12 / 1:30 / 3 / 4:30 / 6 / 7:30 / 9 / 10:30), `fields.ts` (four physical fields: emission potential + gradient, honesty, time, $tao flow), `physics.ts` (one-shot Bezier path computation at ignition; per-frame animation only advances front + cooling + twist phase — no path re-solve), `lifecycle.ts` (five-phase machine + five easings + reduced-motion collapse).
+- Rendering: custom 32-sample ribbon vertex + fragment shader (`shaders.ts`) with helical 2D wobble, moving plasma front, four-stop cooling curve (white → cyan → amber → red), honesty-driven flicker for low-signal cells, edge softening. `BloomController` orchestrates the per-filament Mesh registry on the same Three.js scene as the field.
+- DOM overlay terminals (`BloomTerminal.svelte`) — multi-stop diffuse halo for legibility (tight dark backing + mid soften + outer plasma glow). Identity terminal has a heavier border and one font weight up. Logos render with `referrerpolicy=no-referrer` + `loading=lazy` + `onerror`-hide; links use `<a target=_blank rel=noreferrer>`.
+- DOM overlay sigils (`BloomSigil.svelte`) — Mode B per-segment hover targets at 12 px diameter, focus-visible plasma-glow on hover, keyboard-focusable.
+- `Field.svelte` wired end-to-end: `cellSnapshots[]` mirrors snapshot state for the bloom physics; `aIntensityBase` mirrors the per-snapshot baseline so per-frame `aIntensity = base + bloomBoost` ramps the focused-cell brightness cleanly; pointer + keyboard + zoom-mode handlers drive the orchestrator; `SubnetTooltip.svelte` deleted.
+- Pipeline: `scripts/fetchers-taostats.ts` extracts description + github + twitter + discord + website alongside logoUrl; `scripts/fetch-snapshot.ts` computes `daysSinceRegistration` per row and four deltas (24h emission + 7-epoch emission + 24h signal + 24h rank) against the NDJSON history; `scripts/build-network-json.ts` pivots at `schemaVersion: 3` with a `normaliseSubnetForSchemaV3` backfill for in-flight v1/v2 rows; `static/network.schema.json` bumped to const 3 with all new fields in `required` + `properties`; browser `ACCEPTED_SCHEMA_VERSIONS = [1, 2, 3]`.
+
+What still needs the live-data side: jsDelivr is currently serving v2 (95/129 with logos, no description / no links / no deltas yet). When the next 10-min snapshot cron runs, the `needsSchemaUpgrade` check sees `lastRow.schemaVersion = 2 < CURRENT_SCHEMA_VERSION = 3` and forces a re-fetch; the v3 row hits the data branch and jsDelivr's edge cache is auto-purged via the workflow step added in `54f54d0`. After that, the bloom's Purpose / Age / Trend / Links filaments populate with real owner-declared data.
+
+What is verified now: bloom + cascade + sigils + ignition + cooling + decay render correctly against the current v2 data — the labelled neutral state fills the Purpose / Age / Trend / Links terminals ("owner has not described", "registered · —", "no signal yet") per the §3.3 honesty contract.
 
 **Stage 1 — Greenfield bootstrap.** ✅ Complete and deployed.
 
@@ -80,10 +99,11 @@ Calibration constants for Stage 5 to inherit (in `src/lib/field/config.ts`): `R_
 | 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Complete; verified live on jsDelivr at epoch 23190  |
 | 3     | [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md)           | ✅ Complete; live telemetry strip rendering on staging |
 | 4     | [`docs/handoff/04-field.md`](docs/handoff/04-field.md)                 | ✅ Complete; live field rendering on staging           |
-| 5     | `docs/handoff/05-heartbeat-lifecycle.md`                               | Not started — prompt not yet authored                  |
-| 6     | `docs/handoff/06-delegate-panel.md`                                    | Not started — prompt not yet authored                  |
-| 7     | `docs/handoff/07-time-and-sound.md`                                    | Not started — prompt not yet authored                  |
-| 8     | `docs/handoff/08-tests-signoff.md`                                     | Not started — prompt not yet authored                  |
+| 5     | [`docs/handoff/05-bloom.md`](docs/handoff/05-bloom.md)                  | 🔧 In progress — controller + shader + terminals live; schema v3 plumbed and awaiting next cron-driven cutover |
+| 6     | `docs/handoff/06-heartbeat-lifecycle.md`                               | Not started — rescoped from Stage 5; prompt not yet authored |
+| 7     | `docs/handoff/07-delegate-panel.md`                                    | Not started — prompt not yet authored                  |
+| 8     | `docs/handoff/08-time-and-sound.md`                                    | Not started — prompt not yet authored                  |
+| 9     | `docs/handoff/09-tests-signoff.md`                                     | Not started — prompt not yet authored                  |
 
 ## Open notes / things to surface next session
 
