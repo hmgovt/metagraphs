@@ -15,7 +15,6 @@
  */
 
 import type {
-	BufferAttribute,
 	BufferGeometry as BufferGeometryType,
 	Camera,
 	Mesh,
@@ -26,9 +25,15 @@ import type {
 import type { SubnetRow } from '$lib/types/network';
 import type { CellSnapshot } from './fields';
 import type { FilamentPath } from './physics';
-import { computeFilamentPath, bezierPoint } from './physics';
-import { SEGMENTS, SEGMENT_BY_ID, type SegmentDef, type SegmentId, type TerminalContent } from './segments';
-import { phaseAtTime, FULL_LIFECYCLE_MS, type PhaseState } from './lifecycle';
+import { computeFilamentPath } from './physics';
+import {
+	SEGMENTS,
+	SEGMENT_BY_ID,
+	type SegmentDef,
+	type SegmentId,
+	type TerminalContent
+} from './segments';
+import { phaseAtTime, FULL_LIFECYCLE_MS } from './lifecycle';
 import { ribbonVertexShader, ribbonFragmentShader } from './shaders';
 import {
 	RIBBON_SAMPLES,

@@ -36,7 +36,10 @@ const EMISSION_EPSILON_SQ = 0.01;
  * Scalar emission potential at a field point p, summed over all live
  * cells. Higher near big emitters; near zero in empty regions.
  */
-export function emissionPotential(p: { x: number; y: number }, cells: readonly CellSnapshot[]): number {
+export function emissionPotential(
+	p: { x: number; y: number },
+	cells: readonly CellSnapshot[]
+): number {
 	let sum = 0;
 	for (const c of cells) {
 		if (c.alive === 0 || c.emissionShare <= 0) continue;
@@ -128,7 +131,10 @@ export function ageDaysAt(cell: CellSnapshot): number {
  * Returns a 2D vector; physics.ts converts it into a bloom-orientation
  * rotation capped at TAO_ROTATION_MAX.
  */
-export function taoFlowAt(cell: CellSnapshot, cells: readonly CellSnapshot[]): { x: number; y: number } {
+export function taoFlowAt(
+	cell: CellSnapshot,
+	cells: readonly CellSnapshot[]
+): { x: number; y: number } {
 	const delta = cell.emissionShareDelta24h;
 	if (delta === null || delta === undefined || !Number.isFinite(delta) || delta === 0) {
 		return { x: 0, y: 0 };

@@ -79,7 +79,6 @@
 	});
 
 	let applyData: ((d: NetworkJson | null) => void) | null = null;
-	let projectCell: ((uid: number) => { x: number; y: number } | null) | null = null;
 	let zoomToCell: ((uid: number) => void) | null = null;
 
 	// Forwarded into the bloom orchestrator at frame time.
@@ -337,17 +336,6 @@
 				camera.position.x = Math.max(-maxX, Math.min(maxX, camera.position.x));
 				camera.position.y = Math.max(-maxY, Math.min(maxY, camera.position.y));
 			}
-
-			function projectCellImpl(uid: number): { x: number; y: number } | null {
-				const cell = cells[uid];
-				if (!cell || cell.alive === 0) return null;
-				const rect = mount.getBoundingClientRect();
-				const v = new THREE.Vector3(cell.x, cell.y, 0).project(camera);
-				const x = rect.left + ((v.x + 1) / 2) * rect.width;
-				const y = rect.top + ((1 - v.y) / 2) * rect.height;
-				return { x, y };
-			}
-			projectCell = projectCellImpl;
 
 			function pickAtPointer(clientX: number, clientY: number): number | null {
 				const rect = mount.getBoundingClientRect();
@@ -656,7 +644,6 @@
 				renderer.dispose();
 				if (canvas.parentNode === mount) mount.removeChild(canvas);
 				applyData = null;
-				projectCell = null;
 				zoomToCell = null;
 			};
 		})();

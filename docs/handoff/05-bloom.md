@@ -97,16 +97,16 @@ This is **five lines of vector math at ignition time**, executed once per filame
 
 Same for every cell. Same angular positions. The geography is learnable in three hover-passes.
 
-| # | Segment   | Clock angle | What the filament carries                                          | Filament length driver        |
-|---|-----------|-------------|--------------------------------------------------------------------|-------------------------------|
-| 1 | Identity  | 12:00       | Name, UID, logo (if present)                                       | constant                      |
-| 2 | Purpose   | 1:30        | Description — 1–2 sentences from Taostats identity endpoint        | constant                      |
-| 3 | Emission  | 3:00        | Current emission share %, TAO/day                                  | `emissionShare` (literal)     |
-| 4 | Signal    | 4:30        | Real-revenue signal narrative ("honest revenue $42k/mo" or "subsidy-farming · signal 0.02") | `realRevenueSignal` (literal) |
-| 5 | Age       | 6:00        | "Registered N days ago" + cohort badge                             | `daysSinceRegistration` (log) |
-| 6 | Trend     | 7:30        | 24h / 7-epoch emission delta with arrow                            | `|emissionShareDelta24h|`     |
-| 7 | Network   | 9:00        | Validator count, miner count                                       | constant                      |
-| 8 | Links     | 10:30       | GitHub, Twitter, Discord, website — clickable terminals            | constant                      |
+| #   | Segment  | Clock angle | What the filament carries                                                                   | Filament length driver        |
+| --- | -------- | ----------- | ------------------------------------------------------------------------------------------- | ----------------------------- | --------------------- | --- |
+| 1   | Identity | 12:00       | Name, UID, logo (if present)                                                                | constant                      |
+| 2   | Purpose  | 1:30        | Description — 1–2 sentences from Taostats identity endpoint                                 | constant                      |
+| 3   | Emission | 3:00        | Current emission share %, TAO/day                                                           | `emissionShare` (literal)     |
+| 4   | Signal   | 4:30        | Real-revenue signal narrative ("honest revenue $42k/mo" or "subsidy-farming · signal 0.02") | `realRevenueSignal` (literal) |
+| 5   | Age      | 6:00        | "Registered N days ago" + cohort badge                                                      | `daysSinceRegistration` (log) |
+| 6   | Trend    | 7:30        | 24h / 7-epoch emission delta with arrow                                                     | `                             | emissionShareDelta24h | `   |
+| 7   | Network  | 9:00        | Validator count, miner count                                                                | constant                      |
+| 8   | Links    | 10:30       | GitHub, Twitter, Discord, website — clickable terminals                                     | constant                      |
 
 The clock-face arrangement is a deliberate ergonomic choice: it lets the user develop muscle memory ("emission is at 3 o'clock") so once they have learned the geography they can target a segment without reading any signage. The first time a user hovers a cell, they get the full cascade in clock order; from then on they can target individual segments deliberately.
 
@@ -116,15 +116,15 @@ The clock-face arrangement is a deliberate ergonomic choice: it lets the user de
 
 Per-filament, five phases. Durations are tunable but these are the calibration starting points.
 
-| Phase       | Duration  | What happens                                                                                              |
-|-------------|-----------|-----------------------------------------------------------------------------------------------------------|
-| Ignition    | 0–150 ms  | Bright white-hot point flares at the segment's footpoint on the cell surface. No filament visible yet. The cell itself brightens by ~30%. |
-| Eruption    | 150–800 ms| Filament unspools along its Bezier path. The "moving front" — a bright cyan-white maximum — travels from $P_0$ to $P_3$. The plasma behind the front is bright cyan; ahead of the front, dark. |
-| Apex        | 800–1200 ms| Front reaches $P_3$. Whole filament now visible, full helical twist phase advancing. Brightest moment overall. The text terminal at $P_3$ has not appeared yet. |
-| Cooling     | 1200–2200 ms| Plasma cools along the colour curve: cyan-white → cyan → amber → deep red. Brightness drops to ~30% of apex. Text terminal at $P_3$ fades in over the final 500 ms of this phase, starting around the moment the filament reaches a deep amber. |
-| Afterglow   | 2200 ms+  | Steady illumination. Filament is a dim copper-red glow with subtle plasma turbulence (low-amplitude shader noise). Text terminal at $P_3$ is fully visible. State holds as long as the cursor is on the segment. |
+| Phase     | Duration     | What happens                                                                                                                                                                                                                                    |
+| --------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ignition  | 0–150 ms     | Bright white-hot point flares at the segment's footpoint on the cell surface. No filament visible yet. The cell itself brightens by ~30%.                                                                                                       |
+| Eruption  | 150–800 ms   | Filament unspools along its Bezier path. The "moving front" — a bright cyan-white maximum — travels from $P_0$ to $P_3$. The plasma behind the front is bright cyan; ahead of the front, dark.                                                  |
+| Apex      | 800–1200 ms  | Front reaches $P_3$. Whole filament now visible, full helical twist phase advancing. Brightest moment overall. The text terminal at $P_3$ has not appeared yet.                                                                                 |
+| Cooling   | 1200–2200 ms | Plasma cools along the colour curve: cyan-white → cyan → amber → deep red. Brightness drops to ~30% of apex. Text terminal at $P_3$ fades in over the final 500 ms of this phase, starting around the moment the filament reaches a deep amber. |
+| Afterglow | 2200 ms+     | Steady illumination. Filament is a dim copper-red glow with subtle plasma turbulence (low-amplitude shader noise). Text terminal at $P_3$ is fully visible. State holds as long as the cursor is on the segment.                                |
 
-**Sustain.** Once a filament reaches afterglow, it stays there until the cursor leaves the segment. Hovering a *different* segment doesn't extinguish the current one — it ignites a new one. Multiple sustained filaments can coexist (up to all 8). When the cursor leaves a cell entirely, all sustained filaments enter the decay phase.
+**Sustain.** Once a filament reaches afterglow, it stays there until the cursor leaves the segment. Hovering a _different_ segment doesn't extinguish the current one — it ignites a new one. Multiple sustained filaments can coexist (up to all 8). When the cursor leaves a cell entirely, all sustained filaments enter the decay phase.
 
 **Decay.** 600 ms ease-out fade. The text terminal fades first (~300 ms), then the filament cools to invisibility along the same colour curve in reverse, contracting slightly toward $P_0$.
 
@@ -139,6 +139,7 @@ The mode depends on `camera.zoom`. Both modes share the lifecycle above; they di
 At `camera.zoom < CASCADE_THRESHOLD` (= 2.0; below the existing `NAME_LABEL_ZOOM_THRESHOLD` of 2.4 so labels and cascades don't overlap modes), cells are too small to target individual segments precisely. Hovering anywhere on a cell's interaction halo (~1.4× visible radius, same as the existing raycast multiplier) triggers a **waterfall cascade**: all eight segments ignite in clock-order with a stagger of 90 ms between them.
 
 The total cascade duration is:
+
 - Last segment ignites at $8 \times 90 = 720$ ms
 - Last segment reaches afterglow at $720 + 2200 = 2920$ ms
 - So a full bloom from start to fully-readable is about **3 seconds**.
@@ -149,7 +150,7 @@ After the cascade settles, all 8 filaments are sustained until the cursor leaves
 
 At `camera.zoom ≥ CASCADE_THRESHOLD`, the cell is large enough on screen that the 8 segments can be individually targeted. Eight **sigils** appear as small dim glyphs around the cell at clock positions, fading in over 300 ms when the cursor enters the cell's interaction halo. Each sigil is a hover target ~12 px in diameter at screen scale (so they remain pickable at any zoom).
 
-Hovering a specific sigil ignites *only* that segment's filament. Moving the cursor to a second sigil ignites a second filament alongside the first. Moving off the cell entirely decays all sustained filaments.
+Hovering a specific sigil ignites _only_ that segment's filament. Moving the cursor to a second sigil ignites a second filament alongside the first. Moving off the cell entirely decays all sustained filaments.
 
 A right-click (or `f` keypress while a cell is focused) in Mode B forces a full cascade like Mode A — the user can always summon the cinematic if they want it, even when zoomed in.
 
@@ -193,9 +194,9 @@ Same pattern as the existing zoom label / logo overlay system. A `<div class="fi
 - **Diffuse border for legibility** (essential, not optional). Each terminal renders its text with a multi-stop diffuse halo so the subnet name and value remain legible against any underlying field colour — including over a bright warm cell adjacent to its own bloom. Implementation: layered `text-shadow` with three soft stops at increasing radius:
   ```css
   text-shadow:
-    0 0 2px rgba(8, 6, 14, 0.95),    /* tight dark backing — kills any overlap with cell glow */
-    0 0 6px rgba(8, 6, 14, 0.75),    /* mid diffuse — softens the dark backing's edge */
-    0 0 14px rgba(255, 180, 100, 0.45); /* outer plasma glow — restores the warm afterglow halo */
+  	0 0 2px rgba(8, 6, 14, 0.95),
+  	/* tight dark backing — kills any overlap with cell glow */ 0 0 6px rgba(8, 6, 14, 0.75),
+  	/* mid diffuse — softens the dark backing's edge */ 0 0 14px rgba(255, 180, 100, 0.45); /* outer plasma glow — restores the warm afterglow halo */
   ```
   The Identity segment's name is the most critical to legibility — its dark backing radius bumps up by 50% (`0 0 3px / 0 0 9px / 0 0 18px`) and the font weight rises one step. Names must remain readable at the smallest target font size on any background.
 - `pointer-events: auto` only after afterglow start; before that, pointer-events: none (the user shouldn't be able to misclick into a half-formed text element).
@@ -220,24 +221,24 @@ Stage 5 bumps the snapshot schema to **version 3**. The browser store accepts `[
 
 ```ts
 interface SubnetRow {
-  // … existing v2 fields …
+	// … existing v2 fields …
 
-  // v3 — for the bloom (SPEC §3.9, this stage)
-  description: string | null;        // 1–2 sentences from Taostats identity. null when unavailable.
-  github: string | null;             // owner-declared URL or null
-  twitter: string | null;
-  discord: string | null;
-  website: string | null;
+	// v3 — for the bloom (SPEC §3.9, this stage)
+	description: string | null; // 1–2 sentences from Taostats identity. null when unavailable.
+	github: string | null; // owner-declared URL or null
+	twitter: string | null;
+	discord: string | null;
+	website: string | null;
 
-  daysSinceRegistration: number;     // computed in pivot: (currentBlock - registeredAtBlock) / 7200
+	daysSinceRegistration: number; // computed in pivot: (currentBlock - registeredAtBlock) / 7200
 
-  validatorCount: number | null;     // from Taostats subnet/latest if present, else null
-  minerCount: number | null;
+	validatorCount: number | null; // from Taostats subnet/latest if present, else null
+	minerCount: number | null;
 
-  emissionShareDelta24h: number | null;       // currentShare - shareNEpochsAgo where N ≈ 20
-  emissionShareDelta7epoch: number | null;    // shorter window for trend sensitivity
-  realRevenueSignalDelta24h: number | null;
-  rankDelta24h: number | null;                // change in emission-rank position
+	emissionShareDelta24h: number | null; // currentShare - shareNEpochsAgo where N ≈ 20
+	emissionShareDelta7epoch: number | null; // shorter window for trend sensitivity
+	realRevenueSignalDelta24h: number | null;
+	rankDelta24h: number | null; // change in emission-rank position
 }
 ```
 
@@ -258,16 +259,19 @@ All new fields are `| null` so v2 NDJSON rows (pre-2026-06-08) can be pivoted in
 Currently `fetchSubnetLogos(apiKey)` returns `Map<uid, string|null>` from the identity endpoint. Rename to `fetchSubnetIdentity(apiKey)` and return:
 
 ```ts
-Map<uid, {
-  logoUrl: string | null;
-  description: string | null;
-  github: string | null;
-  twitter: string | null;
-  discord: string | null;
-  website: string | null;
-  validatorCount: number | null;
-  minerCount: number | null;
-}>
+Map<
+	uid,
+	{
+		logoUrl: string | null;
+		description: string | null;
+		github: string | null;
+		twitter: string | null;
+		discord: string | null;
+		website: string | null;
+		validatorCount: number | null;
+		minerCount: number | null;
+	}
+>;
 ```
 
 The identity endpoint already returns all of these in its row (`description`, `github_url`, `twitter_url`, etc.). Extract them in the same pass. Free-tier discipline is unchanged — this is still one call.
@@ -372,18 +376,18 @@ export const RIBBON_HALF_WIDTH_PX = 1.5;
 export const RIBBON_SAMPLES = 32;
 
 // Twist (helical wraps along the filament)
-export const TWIST_AMP_BASE = 0.06;     // displacement in field units
-export const TWIST_FREQ_MIN = 4;        // for old cells
-export const TWIST_FREQ_MAX = 12;       // for new cells; interpolated by age
+export const TWIST_AMP_BASE = 0.06; // displacement in field units
+export const TWIST_FREQ_MIN = 4; // for old cells
+export const TWIST_FREQ_MAX = 12; // for new cells; interpolated by age
 
 // Plasma colour stops
 export const C_WHITE = [1.0, 0.95, 0.9];
-export const C_CYAN  = [0.55, 0.92, 1.0];
+export const C_CYAN = [0.55, 0.92, 1.0];
 export const C_AMBER = [1.0, 0.65, 0.25];
-export const C_RED   = [0.55, 0.1, 0.05];
+export const C_RED = [0.55, 0.1, 0.05];
 
 // Field deformation gains
-export const LENSING_GAIN = 0.4;        // how much ∇E bends the terminus
+export const LENSING_GAIN = 0.4; // how much ∇E bends the terminus
 export const TAO_ROTATION_MAX_DEG = 15; // max bloom orientation tilt from Φ
 
 // Cell brightness boost during bloom
@@ -415,7 +419,7 @@ Implement easings inline (the existing `easeOutCubic` in `Field.svelte`'s zoom t
 
 - **No epoch-locked heartbeat.** The cell's ambient breathe is unchanged. Stage 6 plugs the chain pulse into the same shader uniform.
 - **No births / deaths.** The `aAlive` attribute remains 0/1 per snapshot. Stage 6 animates the transition.
-- **No edges between cells.** This is the third time we have said it because the bloom's lensing effect could *look* like edges if a developer over-renders the curvature. Cap the bend at $0.4 L$ and the filament always terminates in free space.
+- **No edges between cells.** This is the third time we have said it because the bloom's lensing effect could _look_ like edges if a developer over-renders the curvature. Cap the bend at $0.4 L$ and the filament always terminates in free space.
 - **No category/taxonomy curation.** Categories ("inference", "storage", etc.) are not in Taostats and would require curated data. Stage 5 surfaces only what Taostats and the pipeline can compute. A curated `subnet-categories.json` is a future decision.
 - **No multi-cell bloom orchestration.** Hovering many cells fast does not chain blooms together for a synchronized field-wide cascade. That would be cool, but it is a separate stage's worth of design and we are not doing it now.
 - **No 3D.** The bloom is in the existing 2D field plane. A 3D bloom (filaments out of the page) is structurally tempting but kills the ergonomic clarity of the clock-face layout. Decline.
@@ -426,7 +430,7 @@ A user opens https://metagraphs.live/ on a fresh tab. The field renders, cyan-co
 
 They wheel-zoom into the field. The cell grows. They see eight small sigils around it. They hover the 3-o'clock sigil and the emission filament re-flares alone, its length proportional to the subnet's emission share. They hover 6 o'clock; the age filament joins it. They read both. They press Escape; everything fades.
 
-They hover a subsidy-farming cell in the cold tail. Same eight segments, but the plasma cools messily — the cyan phase is short, the amber flickers, the afterglow has visible noise. The signal filament's narrative reads "subsidy-farming · signal 0.02." The user understands the cell's dishonesty without reading the number, because the bloom *looked dishonest*.
+They hover a subsidy-farming cell in the cold tail. Same eight segments, but the plasma cools messily — the cyan phase is short, the amber flickers, the afterglow has visible noise. The signal filament's narrative reads "subsidy-farming · signal 0.02." The user understands the cell's dishonesty without reading the number, because the bloom _looked dishonest_.
 
 They open the network at default zoom on a phone. The reduced-motion check trips automatically on no-hover devices: tap a cell, get a static low-motion bloom with all eight terminals already legible. Same data; appropriate motion.
 
@@ -435,6 +439,7 @@ That is Stage 5 shipped.
 ## Files this stage adds or changes
 
 **Adds:**
+
 - `src/lib/field/bloom/segments.ts`
 - `src/lib/field/bloom/fields.ts`
 - `src/lib/field/bloom/physics.ts`
@@ -445,6 +450,7 @@ That is Stage 5 shipped.
 - `src/lib/field/bloom/BloomTerminal.svelte`
 
 **Changes:**
+
 - `static/network.schema.json` — v3
 - `src/lib/types/network.ts` — v3 fields, schemaVersion union
 - `src/lib/state/network.svelte.ts` — `ACCEPTED_SCHEMA_VERSIONS = [1, 2, 3]`
@@ -460,6 +466,7 @@ That is Stage 5 shipped.
 - `README.md` — Status paragraph rewrite; bloom section added under Field
 
 **Deletes:**
+
 - `src/lib/field/SubnetTooltip.svelte`
 
 ## Commit shape

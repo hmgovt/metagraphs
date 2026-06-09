@@ -16,7 +16,14 @@ import {
 	TERMINAL_FADE_DURATION_MS
 } from './config';
 
-export type Phase = 'igniting' | 'erupting' | 'apex' | 'cooling' | 'afterglow' | 'decaying' | 'extinct';
+export type Phase =
+	| 'igniting'
+	| 'erupting'
+	| 'apex'
+	| 'cooling'
+	| 'afterglow'
+	| 'decaying'
+	| 'extinct';
 
 export interface PhaseState {
 	phase: Phase;

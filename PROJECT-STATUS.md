@@ -93,17 +93,17 @@ Calibration constants for Stage 5 to inherit (in `src/lib/field/config.ts`): `R_
 
 ## Stage index
 
-| Stage | File                                                                   | Status                                                 |
-| ----- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
-| 1     | [`docs/handoff/01-bootstrap.md`](docs/handoff/01-bootstrap.md)         | ✅ Complete                                            |
-| 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Complete; verified live on jsDelivr at epoch 23190  |
-| 3     | [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md)           | ✅ Complete; live telemetry strip rendering on staging |
-| 4     | [`docs/handoff/04-field.md`](docs/handoff/04-field.md)                 | ✅ Complete; live field rendering on staging           |
-| 5     | [`docs/handoff/05-bloom.md`](docs/handoff/05-bloom.md)                  | 🔧 In progress — controller + shader + terminals live; schema v3 plumbed and awaiting next cron-driven cutover |
-| 6     | `docs/handoff/06-heartbeat-lifecycle.md`                               | Not started — rescoped from Stage 5; prompt not yet authored |
-| 7     | `docs/handoff/07-delegate-panel.md`                                    | Not started — prompt not yet authored                  |
-| 8     | `docs/handoff/08-time-and-sound.md`                                    | Not started — prompt not yet authored                  |
-| 9     | `docs/handoff/09-tests-signoff.md`                                     | Not started — prompt not yet authored                  |
+| Stage | File                                                                   | Status                                                                                                         |
+| ----- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1     | [`docs/handoff/01-bootstrap.md`](docs/handoff/01-bootstrap.md)         | ✅ Complete                                                                                                    |
+| 2     | [`docs/handoff/02-data-pipeline.md`](docs/handoff/02-data-pipeline.md) | ✅ Complete; verified live on jsDelivr at epoch 23190                                                          |
+| 3     | [`docs/handoff/03-scaffold.md`](docs/handoff/03-scaffold.md)           | ✅ Complete; live telemetry strip rendering on staging                                                         |
+| 4     | [`docs/handoff/04-field.md`](docs/handoff/04-field.md)                 | ✅ Complete; live field rendering on staging                                                                   |
+| 5     | [`docs/handoff/05-bloom.md`](docs/handoff/05-bloom.md)                 | 🔧 In progress — controller + shader + terminals live; schema v3 plumbed and awaiting next cron-driven cutover |
+| 6     | `docs/handoff/06-heartbeat-lifecycle.md`                               | Not started — rescoped from Stage 5; prompt not yet authored                                                   |
+| 7     | `docs/handoff/07-delegate-panel.md`                                    | Not started — prompt not yet authored                                                                          |
+| 8     | `docs/handoff/08-time-and-sound.md`                                    | Not started — prompt not yet authored                                                                          |
+| 9     | `docs/handoff/09-tests-signoff.md`                                     | Not started — prompt not yet authored                                                                          |
 
 ## Open notes / things to surface next session
 

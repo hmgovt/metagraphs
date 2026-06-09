@@ -75,11 +75,11 @@ export const BLOOM_BRIGHTNESS_RAMP_MS = 200;
 // gives ~100 px of angular separation between adjacent terminal centres —
 // enough headroom once per-quadrant terminal alignment is applied.
 
-export const EMISSION_FILAMENT_BASE = 0.30;
-export const EMISSION_FILAMENT_SCALE = 0.30;
-export const AGE_FILAMENT_BASE = 0.30;
+export const EMISSION_FILAMENT_BASE = 0.3;
+export const EMISSION_FILAMENT_SCALE = 0.3;
+export const AGE_FILAMENT_BASE = 0.3;
 export const AGE_FILAMENT_SCALE = 0.18;
-export const TREND_FILAMENT_BASE = 0.30;
+export const TREND_FILAMENT_BASE = 0.3;
 export const TREND_FILAMENT_SCALE = 15.0; // amplifies small share-deltas
 export const CONSTANT_FILAMENT_LENGTH = 0.36;
 
@@ -96,7 +96,7 @@ export const SIGIL_DIAMETER_PX = 14;
  * regardless of emission share. 0.10 ≈ 45 px at default zoom — well
  * outside any cell's visible radius.
  */
-export const SIGIL_ORBIT_FIELD = 0.10;
+export const SIGIL_ORBIT_FIELD = 0.1;
 export const SIGIL_FADE_MS = 300;
 
 // --- Honesty noise on the ribbon fragment ---

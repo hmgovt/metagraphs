@@ -11,7 +11,8 @@
 
 <button
 	class="sigil"
-	style="left: {sigil.screen.x}px; top: {sigil.screen.y}px; opacity: {sigil.opacity}; width: {SIGIL_DIAMETER_PX}px; height: {SIGIL_DIAMETER_PX}px;"
+	style="left: {sigil.screen.x}px; top: {sigil.screen
+		.y}px; opacity: {sigil.opacity}; width: {SIGIL_DIAMETER_PX}px; height: {SIGIL_DIAMETER_PX}px;"
 	aria-label={sigil.label}
 	type="button"
 	onpointerenter={() => onHover(sigil.uid, sigil.segmentId)}

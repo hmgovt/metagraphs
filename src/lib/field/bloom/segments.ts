@@ -114,7 +114,8 @@ function signalNarrative(subnet: SubnetRow): string {
 }
 
 function fmtRankDelta(delta: number | null | undefined): string {
-	if (delta === null || delta === undefined || !Number.isFinite(delta)) return 'rank — no signal yet';
+	if (delta === null || delta === undefined || !Number.isFinite(delta))
+		return 'rank — no signal yet';
 	if (delta === 0) return 'rank steady';
 	if (delta > 0) return `↑ ${delta} places vs 24h`;
 	return `↓ ${Math.abs(delta)} places vs 24h`;
@@ -271,11 +272,15 @@ export const SEGMENTS: readonly SegmentDef[] = [
 		lengthFor: () => CONSTANT_FILAMENT_LENGTH,
 		render(subnet) {
 			const entries: TerminalLine[] = [];
-			if (subnet.website) entries.push({ text: 'website', emphasis: 'value', href: subnet.website });
+			if (subnet.website)
+				entries.push({ text: 'website', emphasis: 'value', href: subnet.website });
 			if (subnet.github) entries.push({ text: 'github', emphasis: 'value', href: subnet.github });
-			if (subnet.twitter) entries.push({ text: 'twitter', emphasis: 'value', href: subnet.twitter });
-			if (subnet.discord) entries.push({ text: 'discord', emphasis: 'value', href: subnet.discord });
-			if (!entries.length) entries.push({ text: 'links — owner has not registered', emphasis: 'detail' });
+			if (subnet.twitter)
+				entries.push({ text: 'twitter', emphasis: 'value', href: subnet.twitter });
+			if (subnet.discord)
+				entries.push({ text: 'discord', emphasis: 'value', href: subnet.discord });
+			if (!entries.length)
+				entries.push({ text: 'links — owner has not registered', emphasis: 'detail' });
 			return { lines: entries };
 		}
 	}

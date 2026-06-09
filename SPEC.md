@@ -179,16 +179,16 @@ The bloom replaces the v1 click-stub detail panel (D15). The detail surface is i
 
 **The eight segments** (clock positions; identical across cells, so geography becomes muscle memory):
 
-| Angle | Segment   | Carries                                                          |
-|-------|-----------|------------------------------------------------------------------|
-| 12:00 | Identity  | Name, UID, logo                                                  |
-| 1:30  | Purpose   | Description from Taostats identity endpoint                      |
-| 3:00  | Emission  | Current emission share %, TAO/day                                |
-| 4:30  | Signal    | Real-revenue signal narrative                                    |
-| 6:00  | Age       | Registered N days ago + cohort                                   |
-| 7:30  | Trend     | 24 h / 7-epoch emission delta with arrow                         |
-| 9:00  | Network   | Validator + miner counts                                         |
-| 10:30 | Links     | GitHub, Twitter, Discord, website — clickable terminals          |
+| Angle | Segment  | Carries                                                 |
+| ----- | -------- | ------------------------------------------------------- |
+| 12:00 | Identity | Name, UID, logo                                         |
+| 1:30  | Purpose  | Description from Taostats identity endpoint             |
+| 3:00  | Emission | Current emission share %, TAO/day                       |
+| 4:30  | Signal   | Real-revenue signal narrative                           |
+| 6:00  | Age      | Registered N days ago + cohort                          |
+| 7:30  | Trend    | 24 h / 7-epoch emission delta with arrow                |
+| 9:00  | Network  | Validator + miner counts                                |
+| 10:30 | Links    | GitHub, Twitter, Discord, website — clickable terminals |
 
 **Lifecycle.** Per-filament: ignition (150 ms) → eruption (650 ms moving plasma front from cell to terminus) → apex (400 ms peak twist) → cooling (1000 ms cyan → amber → red, text fades in at amber) → afterglow (steady, sustained while hovered). Decay (600 ms fade) when the cursor leaves.
 

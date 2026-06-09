@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* eslint-disable svelte/no-navigation-without-resolve -- terminal hrefs are external URLs (github/twitter/discord/website), not SvelteKit routes */
 	import type { TerminalState } from './controller';
 
 	type Props = {
@@ -33,7 +34,8 @@
 <div
 	class="terminal {alignClass}"
 	class:identity={isIdentity}
-	style="left: {terminal.screen.x}px; top: {terminal.screen.y}px; opacity: {terminal.opacity}; transform: translate({tx}%, {ty}%);"
+	style="left: {terminal.screen.x}px; top: {terminal.screen
+		.y}px; opacity: {terminal.opacity}; transform: translate({tx}%, {ty}%);"
 >
 	{#if terminal.content.logoUrl}
 		<!--
@@ -91,8 +93,7 @@
 		gap: 0.2rem;
 		max-width: 170px;
 		text-align: center;
-		transition:
-			opacity 200ms ease;
+		transition: opacity 200ms ease;
 		filter: drop-shadow(0 0 12px rgba(255, 180, 100, 0.25));
 	}
 

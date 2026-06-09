@@ -38,15 +38,6 @@ export interface FilamentPath {
 }
 
 /**
- * Rotate a 2D vector around the origin.
- */
-function rotate(v: { x: number; y: number }, angle: number): { x: number; y: number } {
-	const c = Math.cos(angle);
-	const s = Math.sin(angle);
-	return { x: c * v.x - s * v.y, y: s * v.x + c * v.y };
-}
-
-/**
  * Approximate Bezier arc length by sampling at fixed steps. Used for
  * positioning the terminal at the curve's end — we already know p3 in
  * field space, but the screen-projected length is what matters for the
@@ -65,8 +56,10 @@ function bezierLength(
 	for (let i = 1; i <= steps; i++) {
 		const t = i / steps;
 		const mt = 1 - t;
-		const x = mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x;
-		const y = mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y;
+		const x =
+			mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x;
+		const y =
+			mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y;
 		len += Math.sqrt((x - prevX) ** 2 + (y - prevY) ** 2);
 		prevX = x;
 		prevY = y;
@@ -174,14 +167,12 @@ export function computeFilamentPath(
 
 	// Twist frequency: high when young, low when old.
 	const twistFreq =
-		TWIST_FREQ_MIN +
-		(TWIST_FREQ_MAX - TWIST_FREQ_MIN) * Math.exp(-ageDays / AGE_STIFFNESS_DAYS);
+		TWIST_FREQ_MIN + (TWIST_FREQ_MAX - TWIST_FREQ_MIN) * Math.exp(-ageDays / AGE_STIFFNESS_DAYS);
 
 	// Twist amplitude: scales with volatility (|delta|).
 	const vol = Math.min(
 		1,
-		Math.abs(cell.emissionShareDelta24h ?? 0) * 200 +
-			Math.abs(cell.realRevenueSignalDelta24h ?? 0)
+		Math.abs(cell.emissionShareDelta24h ?? 0) * 200 + Math.abs(cell.realRevenueSignalDelta24h ?? 0)
 	);
 	const twistAmp = TWIST_AMP_BASE * (0.5 + 0.8 * vol);
 
