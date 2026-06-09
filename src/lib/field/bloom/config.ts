@@ -56,7 +56,7 @@ export const C_RED: readonly [number, number, number] = [0.55, 0.1, 0.05];
 // --- Field deformation gains ---
 
 /** How much the emission-field gradient bends the filament terminus. */
-export const LENSING_GAIN = 0.4;
+export const LENSING_GAIN = 0.22;
 /** Max bloom-orientation rotation from $tao flow direction (radians). */
 export const TAO_ROTATION_MAX = (15 * Math.PI) / 180;
 
@@ -66,24 +66,37 @@ export const BLOOM_BRIGHTNESS_BOOST = 0.3;
 export const BLOOM_BRIGHTNESS_RAMP_MS = 200;
 
 // --- Filament length drivers ---
+//
+// Field space is [-1, 1]; the field circle has R_FIELD ≈ 0.96. Filament
+// lengths control the radial standoff of the terminal text from the cell,
+// so they need to be large enough that 8 terminals (each up to ~150 px
+// wide) fan out around the cell without overlapping. With 8 segments at
+// 45° apart, a minimum length of ~0.30 (≈ 135 px at a 900-px-tall viewport)
+// gives ~100 px of angular separation between adjacent terminal centres —
+// enough headroom once per-quadrant terminal alignment is applied.
 
-export const EMISSION_FILAMENT_BASE = 0.04;
-export const EMISSION_FILAMENT_SCALE = 0.18;
-export const AGE_FILAMENT_BASE = 0.04;
-export const AGE_FILAMENT_SCALE = 0.08;
-export const TREND_FILAMENT_BASE = 0.04;
-export const TREND_FILAMENT_SCALE = 8.0; // amplifies small share-deltas
-export const CONSTANT_FILAMENT_LENGTH = 0.12;
+export const EMISSION_FILAMENT_BASE = 0.30;
+export const EMISSION_FILAMENT_SCALE = 0.30;
+export const AGE_FILAMENT_BASE = 0.30;
+export const AGE_FILAMENT_SCALE = 0.18;
+export const TREND_FILAMENT_BASE = 0.30;
+export const TREND_FILAMENT_SCALE = 15.0; // amplifies small share-deltas
+export const CONSTANT_FILAMENT_LENGTH = 0.36;
 
 /** Cells whose surface a filament emerges from get pushed outward by this offset. */
-export const FILAMENT_FOOTPOINT_OFFSET = 0.005;
+export const FILAMENT_FOOTPOINT_OFFSET = 0.01;
 
 // --- Sigils (Mode B per-segment hover targets) ---
 
 /** Pixel diameter of each sigil at screen scale. */
-export const SIGIL_DIAMETER_PX = 12;
-/** Field-space radius the sigil orbits at, relative to cell radius. */
-export const SIGIL_ORBIT_RADIUS_MULT = 1.8;
+export const SIGIL_DIAMETER_PX = 14;
+/**
+ * Field-space radius the sigil orbits at. Fixed (not cell-radius
+ * proportional) so the sigils are evenly fanned around every cell,
+ * regardless of emission share. 0.10 ≈ 45 px at default zoom — well
+ * outside any cell's visible radius.
+ */
+export const SIGIL_ORBIT_FIELD = 0.10;
 export const SIGIL_FADE_MS = 300;
 
 // --- Honesty noise on the ribbon fragment ---

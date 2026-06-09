@@ -140,8 +140,11 @@ export function computeFilamentPath(
 	};
 
 	let p3 = { x: p0.x + dx * length, y: p0.y + dy * length };
-	// Bend the terminus along the emission-field gradient at p3.
-	const grad = emissionGradient(p3, allCells);
+	// Bend the terminus along the emission-field gradient at p3, but
+	// exclude the cell's own emission contribution — otherwise every
+	// filament gets dragged back onto the cell (the cell's own 1/r² field
+	// swamps everything at a filament-tip distance of ~length).
+	const grad = emissionGradient(p3, allCells, cell.uid);
 	const gradMag = Math.sqrt(grad.x * grad.x + grad.y * grad.y);
 	if (gradMag > 1e-9) {
 		const bendX = (grad.x / gradMag) * LENSING_GAIN * length;

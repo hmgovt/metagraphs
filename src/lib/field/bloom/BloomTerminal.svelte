@@ -5,12 +5,35 @@
 		terminal: TerminalState;
 	};
 	let { terminal }: Props = $props();
+
+	/**
+	 * Convert the segment's clock angle into a CSS transform that pushes
+	 * the terminal radially outward from its anchor point (the filament's
+	 * p3). The smooth formula `(-50 + 50·sin θ, -50 - 50·cos θ)` traces
+	 * a unit-circle offset that lands each cardinal position cleanly:
+	 *   12 o'clock (θ=0): translate(-50%, -100%) — sits above anchor
+	 *    3 o'clock (θ=π/2): translate(0%, -50%) — sits right of anchor
+	 *    6 o'clock (θ=π): translate(-50%, 0%) — sits below anchor
+	 *    9 o'clock (θ=3π/2): translate(-100%, -50%) — sits left of anchor
+	 * Diagonal positions interpolate. The result: 8 terminals fan around
+	 * the cell, each anchored at its filament tip, none overlapping the
+	 * cell or each other.
+	 */
+	let tx = $derived(-50 + 50 * Math.sin(terminal.segmentAngle));
+	let ty = $derived(-50 - 50 * Math.cos(terminal.segmentAngle));
+	/** Identity terminal centers itself (it's the most important; sits above the cell). */
+	let isIdentity = $derived(terminal.emphasisName);
+	let alignClass = $derived(
+		terminal.segmentAngle > Math.PI / 2 && terminal.segmentAngle < (3 * Math.PI) / 2
+			? 'align-down'
+			: 'align-up'
+	);
 </script>
 
 <div
-	class="terminal"
-	class:identity={terminal.emphasisName}
-	style="left: {terminal.screen.x}px; top: {terminal.screen.y}px; opacity: {terminal.opacity};"
+	class="terminal {alignClass}"
+	class:identity={isIdentity}
+	style="left: {terminal.screen.x}px; top: {terminal.screen.y}px; opacity: {terminal.opacity}; transform: translate({tx}%, {ty}%);"
 >
 	{#if terminal.content.logoUrl}
 		<!--
@@ -58,7 +81,7 @@
 <style>
 	.terminal {
 		position: fixed;
-		transform: translate(-50%, -50%);
+		/* transform comes from inline style — radial offset by quadrant. */
 		pointer-events: none; /* overall container is non-blocking; links re-enable below */
 		z-index: 6;
 		font-family: var(--font-mono);
@@ -66,16 +89,15 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 0.2rem;
-		max-width: 220px;
+		max-width: 170px;
 		text-align: center;
 		transition:
-			opacity 200ms ease,
-			transform 200ms ease;
+			opacity 200ms ease;
 		filter: drop-shadow(0 0 12px rgba(255, 180, 100, 0.25));
 	}
 
 	.terminal.identity {
-		max-width: 260px;
+		max-width: 220px;
 	}
 
 	.terminal-logo {

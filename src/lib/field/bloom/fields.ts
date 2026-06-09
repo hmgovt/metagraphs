@@ -49,31 +49,30 @@ export function emissionPotential(p: { x: number; y: number }, cells: readonly C
 
 /**
  * Gradient of the emission field at p — a 2D vector pointing toward
- * the strongest neighbouring emitter. Sampled once per filament at
- * ignition; the filament's terminus bends in the gradient direction
- * scaled by LENSING_GAIN (physics.ts handles the bend).
+ * the strongest *external* emitter (excluding the cell the filament is
+ * originating from). Sampled once per filament at ignition; the
+ * filament's terminus bends in this direction scaled by LENSING_GAIN.
  *
- * Self-contribution is included on purpose: a cell sitting next to a
- * vastly larger emitter sees a strong outward gradient; a dominant cell
- * sees roughly zero (its own field swamps the neighbour). That's the
- * desired economic-lensing visual.
+ * Self-exclusion is essential: a filament tip at distance ≈ cell-radius
+ * from its own cell sees the cell's own emission as the dominant local
+ * field (1/r² explodes near r=0), which would pull every filament back
+ * onto the cell rather than out toward neighbours. The economic lensing
+ * we want is purely from *other* cells; the originating cell is excluded
+ * by uid.
  */
 export function emissionGradient(
 	p: { x: number; y: number },
-	cells: readonly CellSnapshot[]
+	cells: readonly CellSnapshot[],
+	excludeUid: number
 ): { x: number; y: number } {
 	let gx = 0;
 	let gy = 0;
 	for (const c of cells) {
 		if (c.alive === 0 || c.emissionShare <= 0) continue;
+		if (c.uid === excludeUid) continue;
 		const dx = p.x - c.x;
 		const dy = p.y - c.y;
 		const r2 = dx * dx + dy * dy + EMISSION_EPSILON_SQ;
-		// d/dx of (e / r²) = -2 e dx / r⁴, etc. The gradient of the
-		// potential points from c outward in the direction of dx, dy
-		// — for a *filament* originating at the cell, that's away from
-		// the cell. To bend a filament *toward* the strongest emitter
-		// nearby, we want the negative gradient.
 		const k = (-2 * c.emissionShare) / (r2 * r2);
 		gx += k * dx;
 		gy += k * dy;

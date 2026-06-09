@@ -40,7 +40,7 @@ import {
 	BLOOM_BRIGHTNESS_BOOST,
 	BLOOM_BRIGHTNESS_RAMP_MS,
 	DECAY_MS,
-	SIGIL_ORBIT_RADIUS_MULT
+	SIGIL_ORBIT_FIELD
 } from './config';
 
 export type BloomMode = 'cascade' | 'deliberate';
@@ -79,6 +79,14 @@ export interface TerminalState {
 	content: TerminalContent;
 	opacity: number;
 	emphasisName: boolean; // identity terminal gets heavier border
+	/**
+	 * Segment's clock-face angle in radians (0 = up; clockwise positive).
+	 * Used by BloomTerminal to compute a radial transform so each terminal
+	 * sits *away* from the cell — terminals at 3 o'clock anchor on their
+	 * left edge; at 9 o'clock on their right edge; at 12 on the bottom;
+	 * etc. Keeps text from crashing through the cell.
+	 */
+	segmentAngle: number;
 }
 
 export interface BloomFrameResult {
@@ -418,7 +426,8 @@ export class BloomController {
 						screen,
 						content: fil.segment.render(fil.subnet),
 						opacity: phase.terminalOpacity,
-						emphasisName: fil.segmentId === 'identity'
+						emphasisName: fil.segmentId === 'identity',
+						segmentAngle: fil.segment.angle
 					});
 				}
 			}
@@ -431,29 +440,25 @@ export class BloomController {
 			this.filaments.delete(key);
 		}
 
-		// Sigils — Mode B only, around the currently hovered cell.
+		// Sigils — Mode B only, around the currently hovered cell. Orbit
+		// is a fixed field-space radius so they fan evenly regardless of
+		// cell size.
 		if (this.currentMode === 'deliberate' && this.hoveredUid !== null) {
 			const cell = this.cells[this.hoveredUid];
 			if (cell && cell.alive === 1) {
-				const subnet = this.subnetByUid.get(this.hoveredUid);
-				if (subnet) {
-					// Orbit radius derived from emission share (proxy for cell radius)
-					const cellRadius = 0.030 + 0.085 * Math.min(1, subnet.emissionShare ?? 0);
-					const orbit = cellRadius * SIGIL_ORBIT_RADIUS_MULT;
-					for (const seg of SEGMENTS) {
-						const sx = cell.x + Math.sin(seg.angle) * orbit;
-						const sy = cell.y + Math.cos(seg.angle) * orbit;
-						const screen = this.projectPoint({ x: sx, y: sy });
-						if (!screen) continue;
-						sigils.push({
-							id: `${this.hoveredUid}:${seg.id}:sigil`,
-							uid: this.hoveredUid,
-							segmentId: seg.id,
-							screen,
-							label: seg.sigilLabel,
-							opacity: 1
-						});
-					}
+				for (const seg of SEGMENTS) {
+					const sx = cell.x + Math.sin(seg.angle) * SIGIL_ORBIT_FIELD;
+					const sy = cell.y + Math.cos(seg.angle) * SIGIL_ORBIT_FIELD;
+					const screen = this.projectPoint({ x: sx, y: sy });
+					if (!screen) continue;
+					sigils.push({
+						id: `${this.hoveredUid}:${seg.id}:sigil`,
+						uid: this.hoveredUid,
+						segmentId: seg.id,
+						screen,
+						label: seg.sigilLabel,
+						opacity: 1
+					});
 				}
 			}
 		}
