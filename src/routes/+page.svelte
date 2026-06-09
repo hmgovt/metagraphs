@@ -81,12 +81,19 @@
 		display: flex;
 		justify-content: center;
 		pointer-events: none;
+		/* Dimmed while a cell is bloomed (Field.svelte toggles html.bloom-active). */
+		transition: opacity 320ms ease;
 	}
 
 	.overlay-top :global(header) {
 		padding: 1.25rem 1rem 0.5rem;
 		background: linear-gradient(180deg, rgba(2, 3, 5, 0.6) 0%, rgba(2, 3, 5, 0) 100%);
 		width: 100%;
+	}
+
+	:global(html.bloom-active) .overlay-top,
+	:global(html.bloom-active) .overlay-bottom {
+		opacity: 0.18;
 	}
 
 	.overlay-bottom {
@@ -102,6 +109,7 @@
 		padding: 1.5rem 1rem 1.1rem;
 		background: linear-gradient(0deg, rgba(2, 3, 5, 0.7) 0%, rgba(2, 3, 5, 0) 100%);
 		pointer-events: none;
+		transition: opacity 320ms ease;
 	}
 
 	.overlay-bottom :global(a) {

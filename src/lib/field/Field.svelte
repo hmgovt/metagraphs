@@ -104,6 +104,24 @@
 		bloom?.hoverSigil(uid, segmentId);
 	}
 
+	/**
+	 * While a cell is bloomed, dim the page overlays so the bloom owns the
+	 * viewport — the terminal text wants to sit clean over the field, not
+	 * jostle with the page header / footer. Toggled via a class on the
+	 * documentElement so the overlay-top / overlay-bottom can react via
+	 * a :global() rule in +page.svelte without prop plumbing.
+	 */
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		const root = document.documentElement;
+		if (focusedUid !== null) {
+			root.classList.add('bloom-active');
+		} else {
+			root.classList.remove('bloom-active');
+		}
+		return () => root.classList.remove('bloom-active');
+	});
+
 	$effect(() => {
 		if (!container || typeof window === 'undefined') return;
 
