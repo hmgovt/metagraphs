@@ -1,27 +1,12 @@
 {
-  "lastRun": "2026-08-19T14:51:15.180Z",
+  "lastRun": "2026-08-19T15:20:39.367Z",
   "epoch": 24665,
-  "block": 8879526,
+  "block": 8879673,
   "source": "taostats",
   "stale": false,
   "endpoints": {
     "subtensor:chainHead": {
       "status": "ok"
-    },
-    "taostats:subnets": {
-      "status": "ok",
-      "httpStatus": 200,
-      "rowCount": 129,
-      "url": "https://api.taostats.io/api/subnet/latest/v1?page=1&limit=512&order=netuid_asc + https://api.taostats.io/api/dtao/pool/latest/v1?page=1&limit=512&order=netuid_asc"
-    },
-    "taostats:identity": {
-      "status": "ok",
-      "httpStatus": 200,
-      "rowCount": 129,
-      "url": "https://api.taostats.io/api/subnet/identity/v1?limit=512"
-    },
-    "forward-fill": {
-      "status": "forward-filled"
     }
   },
   "asOfWindow": [
@@ -47,6 +32,6 @@
     "2026-08-19T14:51:15.180Z"
   ],
   "notes": [
-    "Forward-filled 29 field(s) from prior snapshot."
+    "Epoch 24665 already captured at block 8879526."
   ]
 }
