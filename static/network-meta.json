@@ -1,7 +1,7 @@
 {
-  "lastRun": "2026-08-23T23:28:31.247Z",
+  "lastRun": "2026-08-23T23:50:46.201Z",
   "epoch": 24752,
-  "block": 8910911,
+  "block": 8911023,
   "source": "taostats",
   "stale": false,
   "endpoints": {
