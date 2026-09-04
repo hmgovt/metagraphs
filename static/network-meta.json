@@ -1,31 +1,28 @@
 {
-  "lastRun": "2026-09-04T17:12:15.590Z",
-  "epoch": 24987,
-  "block": 8995425,
-  "source": "taostats",
+  "lastRun": "2026-09-04T19:38:52.484Z",
+  "epoch": 24989,
+  "block": 8996158,
+  "source": "subtensor",
   "stale": false,
   "endpoints": {
     "subtensor:chainHead": {
       "status": "ok"
     },
     "taostats:subnets": {
-      "status": "ok",
-      "httpStatus": 200,
-      "rowCount": 129,
-      "url": "https://api.taostats.io/api/subnet/latest/v1?page=1&limit=512&order=netuid_asc + https://api.taostats.io/api/dtao/pool/latest/v1?page=1&limit=512&order=netuid_asc"
+      "status": "failed",
+      "reason": "HTTP 500 for subnet/latest/v1 (https://api.taostats.io/api/subnet/latest/v1?page=1&limit=512&order=netuid_asc)"
     },
-    "taostats:identity": {
-      "status": "ok",
-      "httpStatus": 200,
-      "rowCount": 129,
-      "url": "https://api.taostats.io/api/subnet/identity/v1?limit=512"
+    "subtensor:subnetState": {
+      "status": "fallback",
+      "via": "subtensor",
+      "reason": "Taostats unavailable",
+      "url": "wss://entrypoint-finney.opentensor.ai:443"
     },
     "forward-fill": {
       "status": "forward-filled"
     }
   },
   "asOfWindow": [
-    "2026-09-01T22:03:01.977Z",
     "2026-09-02T00:09:41.347Z",
     "2026-09-02T04:32:42.651Z",
     "2026-09-02T09:03:12.652Z",
@@ -44,9 +41,11 @@
     "2026-09-04T05:02:13.586Z",
     "2026-09-04T09:36:22.267Z",
     "2026-09-04T13:45:26.745Z",
-    "2026-09-04T17:12:15.590Z"
+    "2026-09-04T17:12:15.590Z",
+    "2026-09-04T19:38:52.484Z"
   ],
   "notes": [
-    "Forward-filled 41 field(s) from prior snapshot."
+    "Taostats failed: HTTP 500 for subnet/latest/v1 (https://api.taostats.io/api/subnet/latest/v1?page=1&limit=512&order=netuid_asc)",
+    "Forward-filled 773 field(s) from prior snapshot."
   ]
 }
