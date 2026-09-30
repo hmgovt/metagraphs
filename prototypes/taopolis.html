@@ -82,6 +82,12 @@
   .linkbtn{background:none;border:none;margin-top:9px;font:10px var(--mono);color:var(--ink-faint);cursor:pointer;letter-spacing:.04em;padding:0}
   .linkbtn:hover{color:var(--ink)}
 
+  /* nav cluster */
+  #nav{right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px}
+  .nb{width:38px;height:38px;border-radius:10px;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--edge);color:var(--ink-dim);font:500 17px var(--sans);cursor:pointer;display:grid;place-items:center;transition:all .2s}
+  .nb:hover{color:var(--amber);border-color:rgba(255,179,71,.5);box-shadow:0 0 16px rgba(255,179,71,.15)}
+  #navCompass{height:44px}
   /* telemetry + ticker */
   #telemetry{right:24px;bottom:46px;text-align:right;font:10px/1.85 var(--mono);color:var(--ink-faint);letter-spacing:.04em;
     text-shadow:0 1px 8px #000}
@@ -244,6 +250,9 @@
     #dock #lensdesc,#dock #legendkey,#dock .linkbtn{display:none}
     #dock.expanded #lensdesc{display:block}
     #telemetry{display:none}
+    #nav{right:10px;top:132px;transform:none;gap:5px}
+    .nb{width:34px;height:34px;font-size:15px}
+    #navCompass{height:38px}
     #card{left:10px;right:10px;width:auto;top:auto;bottom:36px;max-height:64vh}
     #corecard{left:10px;right:10px;width:auto;top:96px;max-height:70vh}
     #atlas{inset:96px 8px 34px 8px}
@@ -297,6 +306,14 @@
   </div>
 </div>
 
+<div class="hud" id="nav" aria-label="View controls">
+  <button class="nb" id="navCompass" title="North up (click to reset heading)"><svg viewBox="0 0 40 40" width="26" height="26"><circle cx="20" cy="20" r="17" fill="none" stroke="rgba(140,170,255,.25)"/><g id="needle" style="transform-origin:20px 20px"><path d="M20 5 L24.5 20 L20 17.5 L15.5 20Z" fill="#ff4d6d"/><path d="M20 35 L24.5 20 L20 22.5 L15.5 20Z" fill="#6f7a90"/></g></svg></button>
+  <button class="nb" id="navL" title="Rotate left (← or Q)">⟲</button>
+  <button class="nb" id="navR" title="Rotate right (→ or E)">⟳</button>
+  <button class="nb" id="navTilt" title="Isometric view — click to change (↑ ↓ to tilt)">◭</button>
+  <button class="nb" id="navIn" title="Zoom in (+)">+</button>
+  <button class="nb" id="navOut" title="Zoom out (−)">−</button>
+</div>
 <div class="hud" id="telemetry"></div>
 <div id="ticker" aria-hidden="true"><div id="tickrow"></div></div>
 
@@ -350,7 +367,7 @@
       <li><span class="ic" style="background:linear-gradient(135deg,#3dffa2,#b8ff3d)"></span><div><b>Lenses re-light the windows:</b> who the market backs, who's rising, who runs on one miner, who just arrived.</div></li>
     </ul>
     <button id="enter" disabled>LOADING THE CITY…</button>
-    <p class="fine">drag to pan · scroll or pinch to zoom · <span class="kbd">/</span> search · <span class="kbd">1</span>–<span class="kbd">4</span> lenses</p>
+    <p class="fine">drag to pan · right-drag or shift-drag to rotate &amp; tilt · scroll or pinch to zoom · twist to rotate · double-click to fly in · <span class="kbd">/</span> search · <span class="kbd">1</span>–<span class="kbd">4</span> lenses</p>
   </div>
 </div>
 
@@ -505,75 +522,88 @@ const lensT=s=>LENSES[lens].t(s);
 const lensCol=s=>{ const t=lensT(s); return t==null? DIM : grad3(LENSES[lens].stops,t); };
 
 /* ============================================================
-   CITY MODEL
+   CITY MODEL — plots on a plane, with streets between them
    ============================================================ */
-const HUB_R=330, OUT_R0=520, OUT_R1=615;
-const IX=0.866, IY=0.5;
-const isoX=(px,py)=>(px-py)*IX, isoY=(px,py)=>(px+py)*IY;
-let buildings=[], byUid={}, distStats={}, sampler=[], inSampler=[], inTotal=0, IN_RATE=0, emMax=1, pillarSet=new Set();
+let HUB_R=330, OUT_R0=520, OUT_R1=615, CORE_EXT=500;   // CORE_EXT: radius that holds all eight districts
+const IX=0.866, IY=0.5;              // fixed isometric, used by the card portrait only
+const STREET=10;                     // minimum gap between plots (plane units)
+let buildings=[], byUid={}, distStats={}, distR={}, sampler=[], inSampler=[], inTotal=0, IN_RATE=0, emMax=1, pillarSet=new Set();
+const plotsOverlap=(p,q,gap)=>Math.abs(p.px-q.px)<p.a+q.a+gap && Math.abs(p.py-q.py)<p.a+q.a+gap;
+
+/* Pack a district's plots around its own origin: biggest tower at the centre, the rest on
+   the nearest free spot of a widening spiral, never closer than one street to a neighbour. */
+function packDistrict(members, footprint){
+  const placed=[];
+  members.forEach((s,k)=>{
+    const a=footprint(s);
+    if(k===0){ placed.push({s,a,px:0,py:0}); return; }
+    const off=(s.uid*.618)%1; let spot=null;
+    for(let ring=1; ring<80 && !spot; ring++){
+      const R=ring*8, slots=Math.max(8,Math.floor(TAU*R/8));
+      for(let i=0;i<slots;i++){
+        const ang=((i+off)/slots)*TAU, c={a,px:Math.cos(ang)*R,py:Math.sin(ang)*R};
+        if(placed.every(p=>!plotsOverlap(p,c,STREET))){ spot=c; break; }
+      }
+    }
+    placed.push({s,...(spot||{a,px:0,py:0})});
+  });
+  return placed;
+}
 
 function buildCity(){
   const subs=SUBS, mcMax=Math.max(...subs.map(s=>s.mc||0))||1;
-  const footprint=s=>7+17*Math.sqrt((s.mc||0)/mcMax);
-  const heightOf=s=>10+92*Math.sqrt((s.mc||0)/mcMax);
+  const footprint=s=>6+13*Math.sqrt((s.mc||0)/mcMax);
+  const heightOf=s=>10+96*Math.sqrt((s.mc||0)/mcMax);
   const byCat={}; for(const s of subs)(byCat[s.cat]=byCat[s.cat]||[]).push(s);
-  buildings=[];
+  // 1. pack each district, 2. size the ring so neighbouring districts never touch
+  const packs={}; let maxRd=40;
   for(const cat of Object.keys(DISTRICTS)){
-    const d=DISTRICTS[cat], members=(byCat[cat]||[]).slice().sort((a,b)=>(b.mc||0)-(a.mc||0)), placed=[];
-    if(cat==='outskirts'){
-      members.forEach((s,k)=>{ const rng=mulberry(s.uid*7919+11); const ang=k*2.39996+rng()*.22; const r=OUT_R0+(OUT_R1-OUT_R0)*rng();
-        placed.push({s,px:Math.cos(ang)*r,py:Math.sin(ang)*r}); });
-    } else {
-      const hx=Math.cos(rad(d.angle))*HUB_R, hy=Math.sin(rad(d.angle))*HUB_R;
-      members.forEach((s,k)=>{
-        const a=footprint(s);
-        if(k===0){ placed.push({s,px:hx,py:hy}); return; }
-        let ring=1, done=false;
-        while(!done && ring<16){
-          const R=ring*17, slots=Math.max(6,Math.floor(TAU*R/16));
-          for(let i=0;i<slots&&!done;i++){
-            const ang=(i/slots)*TAU+ring*.45+s.uid*.13, px=hx+Math.cos(ang)*R, py=hy+Math.sin(ang)*R;
-            let ok=true;
-            for(const p of placed){ const need=(footprint(p.s)+a)*.78+3.5, dx=px-p.px, dy=py-p.py; if(dx*dx+dy*dy<need*need){ok=false;break;} }
-            if(ok){ placed.push({s,px,py}); done=true; }
-          }
-          ring++;
-        }
-        if(!done){ const rng=mulberry(s.uid); placed.push({s,px:hx+(rng()-.5)*260,py:hy+(rng()-.5)*260}); }
-      });
-    }
-    for(const {s,px,py} of placed){
-      const hub = cat==='outskirts'
-        ? (()=>{const m=Math.hypot(px,py)||1; return {x:px/m*(OUT_R0-90), y:py/m*(OUT_R0-90)};})()
-        : {x:Math.cos(rad(d.angle))*HUB_R, y:Math.sin(rad(d.angle))*HUB_R};
-      const b={s,cat,px,py,a:footprint(s),h:heightOf(s),hue:hex(d.hue),wx:isoX(px,py),wy:isoY(px,py),sort:px+py,
-        glow:0,seed:mulberry(s.uid*31+7)(),hub,r:Math.hypot(px,py),lastPulse:-1};
-      const perp=(x,y,k)=>({x:-y*k,y:x*k}), sgn=s.uid%2?1:-1;
-      const p1=perp(hub.x,hub.y,.18*sgn); b.c1={x:hub.x*.5+p1.x,y:hub.y*.5+p1.y};
-      const p2=perp(px-hub.x,py-hub.y,.3*sgn); b.c2={x:(hub.x+px)/2+p2.x,y:(hub.y+py)/2+p2.y};
-      let L=0,prev={x:0,y:0}; for(let i=1;i<=10;i++){const q=pathPoint(b,i/10);L+=Math.hypot(q.x-prev.x,q.y-prev.y);prev=q;} b.len=L;
-      buildings.push(b);
-    }
+    if(cat==='outskirts') continue;
+    packs[cat]=packDistrict((byCat[cat]||[]).slice().sort((a,b)=>(b.mc||0)-(a.mc||0)), footprint);
+    distR[cat]=Math.max(30,...packs[cat].map(p=>Math.hypot(p.px,p.py)+p.a*1.42));
+    maxRd=Math.max(maxRd,distR[cat]);
   }
-  buildings.sort((a,b)=>a.sort-b.sort);
+  HUB_R=Math.max(110+maxRd, (2*maxRd+60)/0.765);          // hubs sit 45° apart: chord = 0.765·R
+  OUT_R0=HUB_R+maxRd+80; OUT_R1=OUT_R0+50; CORE_EXT=HUB_R+maxRd+30;
+  buildings=[];
+  const add=(s,cat,px,py,hub)=>{
+    const d=DISTRICTS[cat];
+    const b={s,cat,px,py,a:footprint(s),h:heightOf(s),hue:hex(d.hue),glow:0,seed:mulberry(s.uid*31+7)(),hub,r:Math.hypot(px,py),lastPulse:-1,depth:0};
+    const perp=(x,y,k)=>({x:-y*k,y:x*k}), sgn=s.uid%2?1:-1;
+    const p1=perp(hub.x,hub.y,.18*sgn); b.c1={x:hub.x*.5+p1.x,y:hub.y*.5+p1.y};
+    const p2=perp(px-hub.x,py-hub.y,.3*sgn); b.c2={x:(hub.x+px)/2+p2.x,y:(hub.y+py)/2+p2.y};
+    let L=0,prev={x:0,y:0}; for(let i=1;i<=10;i++){const q=pathPoint(b,i/10);L+=Math.hypot(q.x-prev.x,q.y-prev.y);prev=q;} b.len=L;
+    buildings.push(b);
+  };
+  for(const [cat,plots] of Object.entries(packs)){
+    const d=DISTRICTS[cat], hx=Math.cos(rad(d.angle))*HUB_R, hy=Math.sin(rad(d.angle))*HUB_R;
+    for(const p of plots) add(p.s,cat,hx+p.px,hy+p.py,{x:hx,y:hy});
+  }
+  // the outskirts: a sparse ring beyond the districts, evenly spaced with a little jitter
+  const outs=(byCat.outskirts||[]).slice().sort((a,b)=>a.uid-b.uid), placedOut=[];
+  outs.forEach((s,k)=>{
+    const a=footprint(s), rng=mulberry(s.uid*7919+11);
+    let c=null;
+    for(let tries=0;tries<24&&!c;tries++){
+      const ang=(k+rng()*.5)/Math.max(1,outs.length)*TAU+tries*.07, r=OUT_R0+(OUT_R1-OUT_R0)*rng();
+      const cand={a,px:Math.cos(ang)*r,py:Math.sin(ang)*r};
+      if(placedOut.every(p=>!plotsOverlap(p,cand,STREET*2))) c=cand;
+    }
+    c=c||{a,px:Math.cos(k/outs.length*TAU)*OUT_R1,py:Math.sin(k/outs.length*TAU)*OUT_R1};
+    placedOut.push(c);
+    const m=Math.hypot(c.px,c.py)||1;
+    add(s,'outskirts',c.px,c.py,{x:c.px/m*(OUT_R0-50),y:c.py/m*(OUT_R0-50)});
+  });
   byUid={}; buildings.forEach(b=>byUid[b.s.uid]=b);
-  // signage: wall sign unless occluded by a building drawn in front
-  for(let i=0;i<buildings.length;i++){
-    const b=buildings[i]; b.signRoof=b.h<=30; if(b.signRoof) continue;
-    const sx=isoX(b.px+b.a,b.py), sy=isoY(b.px+b.a,b.py)-b.h*.8;
-    for(let j=i+1;j<buildings.length;j++){ const n=buildings[j], nx=isoX(n.px,n.py), ny=isoY(n.px,n.py);
-      if(Math.abs(sx-nx)<2*n.a*IX && sy>ny-n.a-n.h && sy<ny+n.a){ b.signRoof=true; break; } }
-  }
   for(const b of buildings){
     if(!b.s.logo) continue;
-    const im=new Image(); im.referrerPolicy='no-referrer'; im.crossOrigin=null;
+    const im=new Image(); im.referrerPolicy='no-referrer';
     im.onload=()=>{ const w=im.naturalWidth,h=im.naturalHeight; if(!w||!h) return; const c=Math.min(w,h); b.logoCrop=[(w-c)/2,(h-c)/2,c,c]; b.logoOk=true; };
     im.onerror=()=>{ b.logoOk=false; };
     im.src=b.s.logo; b.logoImg=im;
   }
   distStats={};
   for(const cat of Object.keys(DISTRICTS)){ const m=byCat[cat]||[]; distStats[cat]={n:m.length, em:m.reduce((t,s)=>t+s.em,0), mc:m.reduce((t,s)=>t+(s.mc||0),0)}; }
-  // traffic samplers
   const emTotal=SUBS.reduce((t,s)=>t+s.em,0)||1; sampler=[]; let acc=0;
   for(const b of buildings) if(b.s.em>0){ acc+=b.s.em/emTotal; sampler.push({b,acc}); }
   inSampler=[]; inTotal=0;
@@ -582,30 +612,57 @@ function buildCity(){
   emMax=Math.max(...SUBS.map(s=>s.em))||1;
   pillarSet=new Set(SUBS.filter(s=>s.rank && s.rank<=12).map(s=>s.uid));
   vehicles.length=0; flashes.length=0;
+  resize();
+  if(!buildCity.done){ cam.zoom=cam.tzoom=fitZoom; buildCity.done=true; }
   buildPlates();
 }
 function quad(p0,p1,p2,t){const u=1-t;return {x:u*u*p0.x+2*u*t*p1.x+t*t*p2.x, y:u*u*p0.y+2*u*t*p1.y+t*t*p2.y};}
 function pathPoint(b,t){ return t<.5? quad({x:0,y:0},b.c1,b.hub,t*2) : quad(b.hub,b.c2,{x:b.px,y:b.py},(t-.5)*2); }
 
 /* ============================================================
-   CANVAS
+   CAMERA — orbit around a point on the plane: rotate, tilt, zoom, pan
    ============================================================ */
 const cv=document.getElementById('city'), ctx=cv.getContext('2d');
 const lightCv=document.createElement('canvas'), lctx=lightCv.getContext('2d');
 const glowCv=document.createElement('canvas'), gctx=glowCv.getContext('2d');
-const HAS_FILTER = 'filter' in gctx;
+const HAS_FILTER='filter' in gctx;
+const K=1.2247;                                   // plane → screen scale at zoom 1
+const ROT0=Math.PI/4;                             // classic isometric heading
+const TILT0=Math.asin(1/Math.sqrt(3));            // 35.26° — true isometric
+const TILT_MIN=.3, TILT_MAX=1.25, LIFT=30;
+const TILT_PRESETS=[TILT0, 1.08, .36];            // isometric → map view → street level
 let W=0,H=0,DPR=1, fitZoom=1, stars=null;
-const cam={x:0,y:30,zoom:1,tx:0,ty:30,tzoom:1,ox:0,oy:0};
+const cam={cx:0,cy:0,zoom:1,rot:0,tilt:TILT0, tcx:0,tcy:0,tzoom:1,trot:0,ttilt:TILT0};
+let cosT=1,sinT=0,sinP=.577,cosP=.816;
 let lastInput=performance.now();
+function updateView(){ const th=ROT0+cam.rot; cosT=Math.cos(th); sinT=Math.sin(th); sinP=Math.sin(cam.tilt); cosP=Math.cos(cam.tilt); }
+function project(px,py,z=0){
+  const dx=px-cam.cx, dy=py-cam.cy, u=dx*cosT-dy*sinT, v=dx*sinT+dy*cosT;
+  return {x:W/2+u*K*cam.zoom, y:H/2+(v*K*sinP-z*K*cosP-LIFT)*cam.zoom};
+}
+const depthOf=(px,py)=>(px-cam.cx)*sinT+(py-cam.cy)*cosT;
+const zUnit=()=>K*cosP*cam.zoom;                               // screen px per unit of height
+const ellipseR=r=>[K*r*cam.zoom, K*sinP*r*cam.zoom];           // plane circle → screen ellipse radii
+// screen displacement → plane displacement at the current view
+function screenToPlaneDelta(dx,dy,zoom=cam.zoom){
+  const du=dx/(K*zoom), dv=dy/(K*sinP*zoom);
+  return {x:du*cosT+dv*sinT, y:-du*sinT+dv*cosT};
+}
+function screenToPlane(x,y,{cx=cam.cx,cy=cam.cy,zoom=cam.zoom}={}){
+  const d=screenToPlaneDelta(x-W/2, y-H/2+LIFT*zoom, zoom);
+  return {x:cx+d.x, y:cy+d.y};
+}
+function clampCam(){ const r=Math.hypot(cam.tcx,cam.tcy), R=OUT_R1; if(r>R){ cam.tcx*=R/r; cam.tcy*=R/r; } cam.ttilt=clamp(cam.ttilt,TILT_MIN,TILT_MAX); }
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
   cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+'px'; cv.style.height=H+'px';
   lightCv.width=W*DPR; lightCv.height=H*DPR;
   glowCv.width=Math.ceil(W/2); glowCv.height=Math.ceil(H/2);
-  const ext=OUT_R1*1.08, mobile=W<640;
-  fitZoom=Math.min(W/(ext*2*IX*(mobile?.98:1.06)), (H-(mobile?150:90))/(ext*2*IY*1.55));
+  // phones frame the eight districts and let the sparse outskirts run off the edges; wider screens show the whole ring
+  const mobile=W<640, R=mobile? CORE_EXT : OUT_R1+25;
+  fitZoom=Math.min(W/(K*2*R*(mobile?1:1.04)), (H-(mobile?160:100))/(K*Math.sin(TILT0)*2*R+140));
   if(!resize.done){ cam.zoom=cam.tzoom=fitZoom; resize.done=true; }
-  cam.tzoom=clamp(cam.tzoom,fitZoom*.65,fitZoom*9);
+  cam.tzoom=clamp(cam.tzoom,fitZoom*.6,fitZoom*16);
   makeStars();
 }
 function makeStars(){
@@ -615,8 +672,6 @@ function makeStars(){
 }
 addEventListener('resize',resize);
 resize();
-const toScreen=(wx,wy,z=0)=>({x:W/2+(wx-cam.x+cam.ox)*cam.zoom, y:H/2+(wy-cam.y+cam.oy)*cam.zoom-z*cam.zoom});
-const planeToScreen=(px,py,z=0)=>toScreen(isoX(px,py),isoY(px,py),z);
 
 /* ============================================================
    TRAFFIC
@@ -647,52 +702,44 @@ function spawnIn(){
    ============================================================ */
 let epochT=0, lastTs=0, pulseT=99, pulseN=0, hover=null, pinned=null, slowFrames=0, glowOn=true;
 const shade=(hue,k,a)=>C(mixc([12,16,30],hue,k),a);
+function groundEllipse(c,cx,cy,r){ const [rx,ry]=ellipseR(r); c.beginPath(); c.ellipse(cx,cy,rx,ry,0,0,TAU); }
+function flatGlow(c,p,r,col,a){      // a radial glow lying flat on the ground
+  const g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,r); g.addColorStop(0,C(col,a)); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.save(); c.translate(p.x,p.y); c.scale(1,Math.max(.15,sinP)); c.translate(-p.x,-p.y); c.fillStyle=g; c.beginPath(); c.arc(p.x,p.y,r,0,TAU); c.fill(); c.restore();
+}
 
 function drawGround(t){
-  // haze
-  const c0=toScreen(0,0);
-  const gr=ctx.createRadialGradient(c0.x,c0.y,0,c0.x,c0.y,OUT_R1*1.3*cam.zoom);
-  gr.addColorStop(0,'rgba(60,70,130,.32)'); gr.addColorStop(.55,'rgba(30,40,80,.16)'); gr.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.save(); ctx.translate(c0.x,c0.y); ctx.scale(1,.58); ctx.translate(-c0.x,-c0.y); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); ctx.restore();
-  // plane grid — fades with distance from the core
+  const c0=project(0,0);
+  flatGlow(ctx,c0,(OUT_R1+120)*K*cam.zoom,[48,58,118],.3);
+  // plane grid — fades toward the rim
   ctx.lineWidth=1;
-  const G=60, R=OUT_R1+90;
+  const G=60, R=Math.ceil((OUT_R1+90)/G)*G;
   for(let i=-R;i<=R;i+=G){
-    const span=Math.sqrt(Math.max(0,R*R-i*i)); const a=.055*(1-Math.abs(i)/R);
+    const span=Math.sqrt(Math.max(0,R*R-i*i)), a=.05*(1-Math.abs(i)/R);
     ctx.strokeStyle=`rgba(110,150,255,${a})`;
-    let p=planeToScreen(i,-span), q=planeToScreen(i,span); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke();
-    p=planeToScreen(-span,i); q=planeToScreen(span,i); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke();
+    let p=project(i,-span), q=project(i,span); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke();
+    p=project(-span,i); q=project(span,i); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke();
   }
-  // district plazas + avenues
   ctx.globalCompositeOperation='lighter';
   for(const [cat,d] of Object.entries(DISTRICTS)){
     if(cat==='outskirts') continue;
-    const hx=Math.cos(rad(d.angle))*HUB_R, hy=Math.sin(rad(d.angle))*HUB_R, p=planeToScreen(hx,hy), hue=hex(d.hue);
-    const share=distStats[cat]?.em||0;
-    const R2=150*cam.zoom, g2=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,R2);
-    g2.addColorStop(0,C(hue,.05+share*.5)); g2.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.save(); ctx.translate(p.x,p.y); ctx.scale(1,.58); ctx.translate(-p.x,-p.y); ctx.fillStyle=g2; ctx.fillRect(p.x-R2,p.y-R2,R2*2,R2*2); ctx.restore();
-    // plaza ring (plane circle → screen ellipse)
-    const pr=118;
-    ctx.save(); ctx.translate(p.x,p.y); ctx.strokeStyle=C(hue,.16); ctx.lineWidth=1;
-    ctx.setLineDash([2,7]); ctx.lineDashOffset=reduced?0:-t*8;
-    ctx.beginPath(); ctx.ellipse(0,0,pr*1.2247*cam.zoom,pr*.7071*cam.zoom,0,0,TAU); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    // avenue
-    ctx.strokeStyle=C(hue,.09); ctx.lineWidth=Math.max(1.5,2.2*cam.zoom);
+    const hx=Math.cos(rad(d.angle))*HUB_R, hy=Math.sin(rad(d.angle))*HUB_R, p=project(hx,hy), hue=hex(d.hue), share=distStats[cat]?.em||0;
+    const pr=(distR[cat]||60)+22;
+    flatGlow(ctx,p,pr*1.4*K*cam.zoom,hue,.05+share*.5);
+    // plaza boundary
+    ctx.strokeStyle=C(hue,.2); ctx.lineWidth=1; ctx.setLineDash([2,7]); ctx.lineDashOffset=reduced?0:-t*8;
+    groundEllipse(ctx,p.x,p.y,pr); ctx.stroke(); ctx.setLineDash([]);
+    // avenue from the core
+    ctx.strokeStyle=C(hue,.1); ctx.lineWidth=Math.max(1.5,2.4*cam.zoom);
     ctx.beginPath();
-    for(let i=0;i<=16;i++){ const q=quad({x:0,y:0},{x:hx*.5-hy*.12,y:hy*.5+hx*.12},{x:hx,y:hy},i/16); const sp=planeToScreen(q.x,q.y); i?ctx.lineTo(sp.x,sp.y):ctx.moveTo(sp.x,sp.y); }
+    for(let i=0;i<=20;i++){ const q=quad({x:0,y:0},{x:hx*.5-hy*.12,y:hy*.5+hx*.12},{x:hx,y:hy},i/20); const sp=project(q.x,q.y); i?ctx.lineTo(sp.x,sp.y):ctx.moveTo(sp.x,sp.y); }
     ctx.stroke();
   }
-  // outskirts ring road
-  ctx.save(); const o=toScreen(0,0); ctx.translate(o.x,o.y); ctx.strokeStyle='rgba(120,130,160,.07)'; ctx.lineWidth=1.2;
-  ctx.beginPath(); ctx.ellipse(0,0,(OUT_R0-90)*1.2247*cam.zoom,(OUT_R0-90)*.7071*cam.zoom,0,0,TAU); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle='rgba(120,130,160,.08)'; ctx.lineWidth=1.2; groundEllipse(ctx,c0.x,c0.y,OUT_R0-50); ctx.stroke();
   // light pools under emitting towers
   for(const b of buildings){
     if(b.s.em<=0) continue;
-    const p=toScreen(b.wx,b.wy), col=lensCol(b.s), R2=(b.a*2.6+30*Math.sqrt(b.s.em/emMax))*cam.zoom;
-    const g3=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,R2);
-    g3.addColorStop(0,C(col,.22+b.glow*.25)); g3.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.save(); ctx.translate(p.x,p.y); ctx.scale(1,.55); ctx.translate(-p.x,-p.y); ctx.fillStyle=g3; ctx.beginPath(); ctx.arc(p.x,p.y,R2,0,TAU); ctx.fill(); ctx.restore();
+    flatGlow(ctx,project(b.px,b.py),(b.a*2.4+26*Math.sqrt(b.s.em/emMax))*K*cam.zoom,lensCol(b.s),.24+b.glow*.25);
   }
   ctx.globalCompositeOperation='source-over';
 }
@@ -700,163 +747,159 @@ function drawGround(t){
 function drawBuilding(b,t){
   const {a,h,hue}=b, s=b.s;
   const corners=[[b.px-a,b.py-a],[b.px+a,b.py-a],[b.px+a,b.py+a],[b.px-a,b.py+a]];
-  const g=corners.map(c=>planeToScreen(c[0],c[1])), tp=corners.map(c=>planeToScreen(c[0],c[1],h));
-  const lit=s.em>0, focus=(hover===b||pinned===b), eg=Math.min(1,b.glow);
-  const col=lensCol(s);
-  // faces — a vertical gradient gives the towers volume
-  const fg=(top,bot,k1,k2,al)=>{ const gg=ctx.createLinearGradient(0,top,0,bot); gg.addColorStop(0,shade(hue,k1,al)); gg.addColorStop(1,shade(hue,k2,al)); return gg; };
-  ctx.beginPath(); ctx.moveTo(tp[1].x,tp[1].y); ctx.lineTo(tp[2].x,tp[2].y); ctx.lineTo(g[2].x,g[2].y); ctx.lineTo(g[1].x,g[1].y); ctx.closePath();
-  ctx.fillStyle=fg(tp[1].y,g[2].y,lit?.2:.08,lit?.08:.04,.97); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(tp[3].x,tp[3].y); ctx.lineTo(tp[2].x,tp[2].y); ctx.lineTo(g[2].x,g[2].y); ctx.lineTo(g[3].x,g[3].y); ctx.closePath();
-  ctx.fillStyle=fg(tp[3].y,g[2].y,lit?.32:.12,lit?.13:.06,.97); ctx.fill();
-  // vertical edge highlight
-  ctx.strokeStyle=C(hue,lit?.28+eg*.4:.1); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(tp[2].x,tp[2].y); ctx.lineTo(g[2].x,g[2].y); ctx.stroke();
-  // roof
-  ctx.beginPath(); ctx.moveTo(tp[0].x,tp[0].y); ctx.lineTo(tp[1].x,tp[1].y); ctx.lineTo(tp[2].x,tp[2].y); ctx.lineTo(tp[3].x,tp[3].y); ctx.closePath();
+  const g=corners.map(c=>project(c[0],c[1])), tp=corners.map(c=>project(c[0],c[1],h));
+  // the corner nearest the viewer decides which two walls face us
+  let n=0,best=-1e9; for(let i=0;i<4;i++){ const d=depthOf(corners[i][0],corners[i][1]); if(d>best){best=d;n=i;} }
+  const nA=(n+3)%4, nB=(n+1)%4, far=(n+2)%4;
+  const [left,right]= g[nA].x<g[nB].x? [nA,nB] : [nB,nA];
+  const lit=s.em>0, focus=(hover===b||pinned===b), eg=Math.min(1,b.glow), col=lensCol(s);
+  const wall=(o,k1,k2)=>{ ctx.beginPath(); ctx.moveTo(tp[o].x,tp[o].y); ctx.lineTo(tp[n].x,tp[n].y); ctx.lineTo(g[n].x,g[n].y); ctx.lineTo(g[o].x,g[o].y); ctx.closePath();
+    const gg=ctx.createLinearGradient(0,Math.min(tp[o].y,tp[n].y),0,Math.max(g[o].y,g[n].y)); gg.addColorStop(0,shade(hue,k1,.97)); gg.addColorStop(1,shade(hue,k2,.97)); ctx.fillStyle=gg; ctx.fill(); };
+  wall(right, lit?.2:.08, lit?.08:.04);
+  wall(left,  lit?.32:.12, lit?.13:.06);
+  ctx.strokeStyle=C(hue,lit?.28+eg*.4:.1); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(tp[n].x,tp[n].y); ctx.lineTo(g[n].x,g[n].y); ctx.stroke();
+  ctx.beginPath(); tp.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath();
   ctx.fillStyle=shade(hue,lit?.46:.17,.98); ctx.fill();
-  ctx.strokeStyle=focus? 'rgba(255,255,255,.95)' : C(lit?col:hue,(lit?.6:.16)+eg*.4); ctx.lineWidth=focus?1.8:1; ctx.stroke();
-  // windows: colour = active lens; lit fraction = emitting or dark
-  if(cam.zoom>fitZoom*.8 && h>14){
-    const rows=Math.min(12,Math.floor(h/9)), cols=a>16?3:2;
+  ctx.strokeStyle=focus?'rgba(255,255,255,.95)':C(lit?col:hue,(lit?.6:.16)+eg*.4); ctx.lineWidth=focus?1.8:1; ctx.stroke();
+  // windows on the two visible walls
+  const zu=zUnit();
+  if(h*zu>14 && cam.zoom>fitZoom*.8){
+    const rows=Math.min(14,Math.max(2,Math.floor(h/8))), cols=a>14?3:2;
     const shimmer=reduced?1:.78+.22*Math.sin(t*1.3+b.seed*9);
     const wsz=Math.max(1,1.25*cam.zoom/fitZoom);
-    ctx.fillStyle=lit? C(col,1) : 'rgba(110,130,160,.3)';
+    ctx.fillStyle=lit?C(col,1):'rgba(110,130,160,.3)';
     for(let r=0;r<rows;r++){
-      const z=h*(.14+.76*r/Math.max(rows-1,1));
-      for(const [pA,pB] of [[2,1],[2,3]]){
+      const z=h*(.12+.78*r/Math.max(rows-1,1));
+      for(const o of [left,right]){
         for(let k=0;k<cols;k++){
-          const f=cols===3? .22+.28*k : .3+.38*k;
-          const on=lit? ((b.seed*97+r*13+k*7+pA)%10<7) : ((b.seed*97+r*13+k*7+pA)%10<1);
+          const f=cols===3? .2+.3*k : .3+.4*k;
+          const on=lit?((b.seed*97+r*13+k*7+o)%10<7):((b.seed*97+r*13+k*7+o)%10<1);
           if(!on) continue;
-          const p=planeToScreen(lerp(corners[pA][0],corners[pB][0],f), lerp(corners[pA][1],corners[pB][1],f), z);
-          ctx.globalAlpha=lit? (.55+.45*shimmer)*(.75+eg*.25) : .5;
+          const p=project(lerp(corners[n][0],corners[o][0],f), lerp(corners[n][1],corners[o][1],f), z);
+          ctx.globalAlpha=lit?(.55+.45*shimmer)*(.75+eg*.25):.5;
           ctx.fillRect(p.x-wsz/2,p.y-wsz/2,wsz,wsz*1.5);
         }
       }
     }
     ctx.globalAlpha=1;
   }
-  // signage — owner-declared logo on the wall, or painted on the roof
+  // signage — a wall sign on tall towers, painted on the roof otherwise (painter's order handles occlusion)
   if(b.logoOk){
-    let wall=false;
-    if(!b.signRoof){
-      const e1=tp[1], e2=tp[2], faceW=Math.hypot(e2.x-e1.x,e2.y-e1.y), S=Math.min(faceW*.62,h*cam.zoom*.34,34);
+    let done=false;
+    if(h>30){
+      const e1=tp[right], e2=tp[n], faceW=Math.hypot(e2.x-e1.x,e2.y-e1.y), S=Math.min(faceW*.62,h*zu*.34,40);
       if(S>=5){
-        const cx2=lerp(e1.x,e2.x,.5), cy2=lerp(e1.y,e2.y,.5)+h*cam.zoom*.2, ux=(e2.x-e1.x)/faceW, uy=(e2.y-e1.y)/faceW;
+        const cx2=lerp(e1.x,e2.x,.5), cy2=lerp(e1.y,e2.y,.5)+h*zu*.2, ux=(e2.x-e1.x)/faceW, uy=(e2.y-e1.y)/faceW;
         ctx.save(); ctx.transform(ux*S,uy*S,0,S,cx2,cy2); ctx.fillStyle='rgba(4,6,12,.88)'; ctx.fillRect(-.62,-.62,1.24,1.24);
         try{ ctx.drawImage(b.logoImg,...b.logoCrop,-.5,-.5,1,1); }catch(_){ b.logoOk=false; }
-        ctx.strokeStyle=C(hue,.6+eg*.3); ctx.lineWidth=.07; ctx.strokeRect(-.62,-.62,1.24,1.24); ctx.restore(); wall=true;
+        ctx.strokeStyle=C(hue,.6+eg*.3); ctx.lineWidth=.07; ctx.strokeRect(-.62,-.62,1.24,1.24); ctx.restore(); done=true;
       }
     }
-    if(!wall){
-      const S=a*1.3*cam.zoom;
-      if(S>=6){ const c2=toScreen(b.wx,b.wy,h); ctx.save(); ctx.transform(IX*S,IY*S,-IX*S,IY*S,c2.x,c2.y);
+    if(!done){
+      const d=a*1.3, z=cam.zoom*K;
+      if(d*z>=6){
+        const c2=project(b.px,b.py,h);
+        ctx.save(); ctx.transform(cosT*z*d, sinP*sinT*z*d, -sinT*z*d, sinP*cosT*z*d, c2.x, c2.y);
         ctx.fillStyle='rgba(4,6,12,.8)'; ctx.fillRect(-.58,-.58,1.16,1.16);
         try{ ctx.drawImage(b.logoImg,...b.logoCrop,-.5,-.5,1,1); }catch(_){ b.logoOk=false; }
-        ctx.strokeStyle=C(hue,.55+eg*.3); ctx.lineWidth=.06; ctx.strokeRect(-.58,-.58,1.16,1.16); ctx.restore(); }
+        ctx.strokeStyle=C(hue,.55+eg*.3); ctx.lineWidth=.06; ctx.strokeRect(-.58,-.58,1.16,1.16); ctx.restore();
+      }
     }
   }
   // construction crane for newcomers
   if(s.isNew){
-    const base=toScreen(b.wx,b.wy,h), m=h*.9*cam.zoom, jib=(a*2.2)*cam.zoom;
+    const base=project(b.px,b.py,h), m=h*.9*zu, jib=a*2.2*K*cam.zoom;
     ctx.strokeStyle='rgba(200,255,61,.75)'; ctx.lineWidth=1.1;
     ctx.beginPath(); ctx.moveTo(base.x,base.y); ctx.lineTo(base.x,base.y-m); ctx.lineTo(base.x+jib,base.y-m+jib*.2); ctx.moveTo(base.x,base.y-m); ctx.lineTo(base.x-jib*.35,base.y-m-jib*.07);
     ctx.moveTo(base.x+jib*.8,base.y-m+jib*.16); ctx.lineTo(base.x+jib*.8,base.y-m*.45); ctx.stroke();
     if(reduced||Math.sin(t*4+b.seed*10)>0){ ctx.fillStyle='#ff4d6d'; ctx.beginPath(); ctx.arc(base.x,base.y-m-1.5,1.8,0,TAU); ctx.fill(); }
   }
-  // demolition watch: dashed red cordon + beacon
+  // demolition watch: dashed red cordon around the plot
   if(s.watch){
     ctx.save(); ctx.strokeStyle='rgba(255,77,109,.8)'; ctx.lineWidth=1.2; ctx.setLineDash([4,3]); ctx.lineDashOffset=reduced?0:-t*10;
-    const k=1.35, cc=[[b.px-a*k,b.py-a*k],[b.px+a*k,b.py-a*k],[b.px+a*k,b.py+a*k],[b.px-a*k,b.py+a*k]].map(c=>planeToScreen(c[0],c[1]));
-    ctx.beginPath(); cc.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.stroke(); ctx.restore();
+    const k=1.35; ctx.beginPath();
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy],i)=>{ const p=project(b.px+sx*a*k,b.py+sy*a*k); i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y); });
+    ctx.closePath(); ctx.stroke(); ctx.restore();
   }
-  b.poly=[tp[0],tp[1],g[1],g[2],g[3],tp[3]];
-  b.anchor=toScreen(b.wx,b.wy,h);
+  b.poly=[tp[far],tp[nA],g[nA],g[n],g[nB],tp[nB]];
+  b.anchor=project(b.px,b.py,h);
 }
 
 function drawCore(t,L){
-  const p=toScreen(0,0), z=cam.zoom, breathe=reduced?1:.9+.1*Math.sin(t*1.1), R=58*z*breathe;
+  const z=cam.zoom, breathe=reduced?1:.9+.1*Math.sin(t*1.1), R=58*z*breathe, lift=8*zUnit()/z*z;
+  const p0=project(0,0), p={x:p0.x,y:p0.y-lift};
   for(const c of [ctx,L]){
     c.save(); c.globalCompositeOperation='lighter';
-    const g=c.createRadialGradient(p.x,p.y-8*z,0,p.x,p.y-8*z,R*2.4);
+    const g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,R*2.4);
     g.addColorStop(0,'rgba(255,220,150,.9)'); g.addColorStop(.22,'rgba(255,170,80,.4)'); g.addColorStop(.6,'rgba(200,90,120,.1)'); g.addColorStop(1,'rgba(0,0,0,0)');
-    c.fillStyle=g; c.beginPath(); c.arc(p.x,p.y-8*z,R*2.4,0,TAU); c.fill();
-    c.restore();
-    if(c===L) break;
+    c.fillStyle=g; c.beginPath(); c.arc(p.x,p.y,R*2.4,0,TAU); c.fill(); c.restore();
   }
-  // skyward beam
   L.save(); L.globalCompositeOperation='lighter';
-  const bh=Math.min(H, 520*z), bw=10*z*breathe, bg=L.createLinearGradient(0,p.y,0,p.y-bh);
+  const bh=Math.min(H,520*zUnit()), bw=10*z*breathe, bg=L.createLinearGradient(0,p0.y,0,p0.y-bh);
   bg.addColorStop(0,'rgba(255,200,120,.55)'); bg.addColorStop(1,'rgba(255,120,200,0)');
-  L.fillStyle=bg; L.fillRect(p.x-bw/2,p.y-bh,bw,bh); L.restore();
-  // rings + epoch arc
-  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.translate(p.x,p.y-8*z); ctx.scale(1,.55);
+  L.fillStyle=bg; L.fillRect(p0.x-bw/2,p0.y-bh,bw,bh); L.restore();
+  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.translate(p.x,p.y); ctx.scale(1,Math.max(.15,sinP)*.95);
   ctx.strokeStyle='rgba(255,200,120,.5)'; ctx.lineWidth=1.4; ctx.setLineDash([7,9]); ctx.lineDashOffset=reduced?0:-t*26;
   ctx.beginPath(); ctx.arc(0,0,R*1.5,0,TAU); ctx.stroke();
   ctx.strokeStyle='rgba(255,79,216,.35)'; ctx.setLineDash([2,12]); ctx.lineDashOffset=reduced?0:t*18;
   ctx.beginPath(); ctx.arc(0,0,R*1.25,0,TAU); ctx.stroke(); ctx.setLineDash([]);
+  // epoch clock — starts at the viewer's "north" so it reads like a clock at any heading
   ctx.strokeStyle='rgba(255,179,71,.9)'; ctx.lineWidth=2.4;
   ctx.beginPath(); ctx.arc(0,0,R*1.8,-Math.PI/2,-Math.PI/2+TAU*(epochT/EPOCH_S)); ctx.stroke();
   ctx.restore();
 }
 
 function drawLights(t,L){
-  // light pillars from the top emitters
   L.globalCompositeOperation='lighter';
+  const tiltK=cosP/Math.cos(TILT0);
   for(const b of buildings){
-    if(!pillarSet.has(b.s.uid) || !b.anchor) continue;
+    if(!pillarSet.has(b.s.uid)||!b.anchor) continue;
     const col=lensCol(b.s), k=Math.sqrt(b.s.em/emMax), top=b.anchor;
-    const beamH=(140+620*k)*cam.zoom*(reduced?1:.92+.08*Math.sin(t*2+b.seed*7))*(1+b.glow*.25);
+    const beamH=(140+620*k)*cam.zoom*tiltK*(reduced?1:.92+.08*Math.sin(t*2+b.seed*7))*(1+b.glow*.25);
     const w=Math.max(2,b.a*.55*cam.zoom);
     const gg=L.createLinearGradient(0,top.y,0,top.y-beamH);
     gg.addColorStop(0,C(col,.5+b.glow*.3)); gg.addColorStop(.35,C(col,.16)); gg.addColorStop(1,C(col,0));
     L.fillStyle=gg; L.beginPath(); L.moveTo(top.x-w,top.y); L.lineTo(top.x+w,top.y); L.lineTo(top.x+w*.25,top.y-beamH); L.lineTo(top.x-w*.25,top.y-beamH); L.closePath(); L.fill();
     L.fillStyle=C(col,.9); L.beginPath(); L.arc(top.x,top.y,Math.max(1.6,1.8*cam.zoom/fitZoom),0,TAU); L.fill();
   }
-  // demolition beacons
   for(const b of buildings){ if(!b.s.watch||!b.anchor) continue;
-    const on=reduced?1:(.5+.5*Math.sin(t*5+b.seed*3)); const r=(4+6*on)*Math.max(1,cam.zoom/fitZoom*.7);
+    const on=reduced?1:(.5+.5*Math.sin(t*5+b.seed*3)), r=(4+6*on)*Math.max(1,cam.zoom/fitZoom*.7);
     const g=L.createRadialGradient(b.anchor.x,b.anchor.y-2,0,b.anchor.x,b.anchor.y-2,r*3); g.addColorStop(0,`rgba(255,77,109,${.9*on})`); g.addColorStop(1,'rgba(255,77,109,0)');
     L.fillStyle=g; L.beginPath(); L.arc(b.anchor.x,b.anchor.y-2,r*3,0,TAU); L.fill(); }
-  // vehicles
   for(let i=vehicles.length-1;i>=0;i--){
     const v=vehicles[i]; v.t+=v.u*frameDt;
     if(v.t>=1){ if(v.dir===1){ v.b.glow=Math.min(1.4,v.b.glow+.45); flashes.push({b:v.b,age:0,col:v.vt.col}); } vehicles.splice(i,1); continue; }
     const tt=v.dir===1?v.t:1-v.t, t2=v.dir===1?Math.max(0,v.t-v.vt.trail):Math.min(1,1-v.t+v.vt.trail);
-    const hd=pathPoint(v.b,tt), tl=pathPoint(v.b,t2), hp=planeToScreen(hd.x,hd.y,1.5), tp2=planeToScreen(tl.x,tl.y,1.5);
-    const lw=v.vt.size*clamp(cam.zoom/fitZoom,.7,2.4);
+    const hd=pathPoint(v.b,tt), tl=pathPoint(v.b,t2), hp=project(hd.x,hd.y,1.5), tp2=project(tl.x,tl.y,1.5);
+    const lw=v.vt.size*clamp(cam.zoom/fitZoom,.7,2.6);
     const lg=L.createLinearGradient(tp2.x,tp2.y,hp.x,hp.y); lg.addColorStop(0,C(v.vt.col,0)); lg.addColorStop(1,C(v.vt.col,.7));
     L.strokeStyle=lg; L.lineWidth=lw; L.lineCap='round'; L.beginPath(); L.moveTo(tp2.x,tp2.y); L.lineTo(hp.x,hp.y); L.stroke();
     L.fillStyle='rgba(255,255,255,.95)'; L.beginPath(); L.arc(hp.x,hp.y,lw*.55,0,TAU); L.fill();
   }
-  // arrival flashes
   for(let i=flashes.length-1;i>=0;i--){
     const f=flashes[i]; f.age+=frameDt; if(f.age>.6){ flashes.splice(i,1); continue; }
-    const k=f.age/.6, p=toScreen(f.b.wx,f.b.wy,2), R=(6+26*k)*cam.zoom*.5;
+    const k=f.age/.6, p=project(f.b.px,f.b.py,2), R=(6+26*k)*cam.zoom*.5;
     const g3=L.createRadialGradient(p.x,p.y,0,p.x,p.y,R); g3.addColorStop(0,C(f.col,.55*(1-k))); g3.addColorStop(1,'rgba(0,0,0,0)');
     L.fillStyle=g3; L.beginPath(); L.arc(p.x,p.y,R,0,TAU); L.fill();
   }
-  // epoch shockwave — lights each tower as it passes
   if(pulseT<3.2){
-    const k=pulseT/3.2, p=toScreen(0,0), rr=k*OUT_R1*1.15;
-    L.save(); L.translate(p.x,p.y);
-    for(const [w,a] of [[10,.08],[3,.22],[1.2,.6]]){ L.strokeStyle=`rgba(255,190,110,${a*(1-k)})`; L.lineWidth=w; L.beginPath(); L.ellipse(0,0,rr*1.2247*cam.zoom,rr*.7071*cam.zoom,0,0,TAU); L.stroke(); }
-    L.restore();
+    const k=pulseT/3.2, p=project(0,0), rr=k*OUT_R1*1.12;
+    for(const [w,a] of [[10,.08],[3,.22],[1.2,.6]]){ L.strokeStyle=`rgba(255,190,110,${a*(1-k)})`; L.lineWidth=w; groundEllipse(L,p.x,p.y,rr); L.stroke(); }
     for(const b of buildings) if(b.lastPulse!==pulseN && b.r<rr){ b.lastPulse=pulseN; b.glow=Math.min(1.4,b.glow+(b.s.em>0?.7:.25)); }
   }
   L.globalCompositeOperation='source-over';
 }
 
-let frameDt=.016;
+let frameDt=.016, compassDeg=null;
 function frame(ts){
   const dt=Math.min(.05,(ts-lastTs)/1000||.016); lastTs=ts; frameDt=dt; const t=ts/1000;
-  // adaptive: drop the blur pass on slow devices
   if(dt>.034){ if(++slowFrames>90) glowOn=false; } else slowFrames=Math.max(0,slowFrames-1);
-  // idle drift
-  const idle=!reduced && !pinned && (performance.now()-lastInput>9000);
-  const tox=idle? 28*Math.sin(t*.07):0, toy=idle? 14*Math.sin(t*.09):0;
-  cam.ox=lerp(cam.ox,tox,1-Math.pow(.2,dt)); cam.oy=lerp(cam.oy,toy,1-Math.pow(.2,dt));
-  cam.x=lerp(cam.x,cam.tx,1-Math.pow(.001,dt)); cam.y=lerp(cam.y,cam.ty,1-Math.pow(.001,dt)); cam.zoom=lerp(cam.zoom,cam.tzoom,1-Math.pow(.0005,dt));
+  // idle: the city slowly turns on its axis
+  if(!reduced && !pinned && !dragging && performance.now()-lastInput>9000) cam.trot+=dt*.035;
+  const e1=1-Math.pow(.001,dt), e2=1-Math.pow(.0005,dt), e3=1-Math.pow(.002,dt);
+  cam.cx=lerp(cam.cx,cam.tcx,e1); cam.cy=lerp(cam.cy,cam.tcy,e1); cam.zoom=lerp(cam.zoom,cam.tzoom,e2);
+  cam.rot=lerp(cam.rot,cam.trot,e3); cam.tilt=lerp(cam.tilt,cam.ttilt,e3);
+  updateView();
   epochT+=dt; if(epochT>=EPOCH_S){ epochT-=EPOCH_S; pulseT=0; pulseN++; } pulseT+=dt;
   const burst=pulseT<2?2.2:1;
   spawnAcc+=RATE*burst*dt; while(spawnAcc>1 && vehicles.length<800){ spawnAcc-=1; spawn(); }
@@ -864,10 +907,8 @@ function frame(ts){
 
   ctx.setTransform(DPR,0,0,DPR,0,0);
   lctx.setTransform(DPR,0,0,DPR,0,0); lctx.clearRect(0,0,W,H);
-  // sky
   const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#04060c'); bg.addColorStop(.6,'#0a0f1f'); bg.addColorStop(1,'#10152a');
   ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-  // aurora
   {
     const ta=reduced?0:t; ctx.globalCompositeOperation='lighter';
     for(const [cx,cy,r,c,sp] of [[.25,.12,.55,[120,60,200],.05],[.75,.08,.5,[30,120,190],.04],[.5,.02,.4,[200,70,140],.06]]){
@@ -877,17 +918,20 @@ function frame(ts){
     }
     ctx.globalCompositeOperation='source-over';
   }
-  ctx.drawImage(stars,0,0,W,H);
+  // stars drift with the heading so rotation reads as rotation
+  const sx=((cam.rot*180/Math.PI*6)%W+W)%W;
+  ctx.drawImage(stars,-sx,0,W,H); ctx.drawImage(stars,W-sx,0,W,H);
   if(buildings.length){
     drawGround(t);
-    let coreDrawn=false;
+    for(const b of buildings) b.depth=depthOf(b.px,b.py);
+    buildings.sort((a,b)=>a.depth-b.depth);
+    const coreDepth=depthOf(0,0); let coreDrawn=false;
     for(const b of buildings){
-      if(!coreDrawn && b.sort>0){ drawCore(t,lctx); coreDrawn=true; }
+      if(!coreDrawn && b.depth>coreDepth){ drawCore(t,lctx); coreDrawn=true; }
       drawBuilding(b,t); b.glow*=Math.pow(.3,dt);
     }
     if(!coreDrawn) drawCore(t,lctx);
     drawLights(t,lctx);
-    // composite light layer: sharp + bloom
     ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='lighter';
     ctx.drawImage(lightCv,0,0);
     if(glowOn){
@@ -899,10 +943,12 @@ function frame(ts){
     }
     ctx.restore();
   }
-  // vignette
   const vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.35,W/2,H/2,Math.max(W,H)*.78);
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(2,3,8,.55)'); ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
   if(buildings.length){ updatePlates(); updateLabels(); }
+  // compass needle points at the plane's "north" (−y)
+  const deg=Math.round(Math.atan2(K*sinT, K*sinP*cosT)*180/Math.PI);
+  if(deg!==compassDeg){ compassDeg=deg; needle.style.transform=`rotate(${deg}deg)`; }
   if(ts-(frame.lastTel||0)>500){ frame.lastTel=ts; updateTelemetry(); }
   requestAnimationFrame(frame);
 }
@@ -923,11 +969,11 @@ function buildPlates(){
 }
 function updatePlates(){
   for(const [cat,el] of Object.entries(plates)){
-    const d=DISTRICTS[cat], hx=Math.cos(rad(d.angle))*HUB_R, hy=Math.sin(rad(d.angle))*HUB_R, m=Math.hypot(hx,hy);
-    const p=planeToScreen(hx+hx/m*150, hy+hy/m*150, -8);
+    const d=DISTRICTS[cat], hx=Math.cos(rad(d.angle))*HUB_R, hy=Math.sin(rad(d.angle))*HUB_R, m=Math.hypot(hx,hy), off=(distR[cat]||60)+46;
+    const p=project(hx+hx/m*off, hy+hy/m*off, 0);
     const hw=(el.offsetWidth||80)/2+8, x=clamp(p.x,hw,W-hw);
     el.style.transform=`translate(${x}px,${p.y}px) translate(-50%,-50%)`; el.style.left='0'; el.style.top='0';
-    el.style.opacity=cam.zoom<fitZoom*2.4?1:0;
+    el.style.opacity=cam.zoom<fitZoom*2.2?1:0;
   }
 }
 const labelPool=[];
@@ -1109,27 +1155,44 @@ $('cardclose').onclick=()=>{ pinned=null; hideCard(); history.replaceState(null,
 /* ============================================================
    INTERACTION
    ============================================================ */
-let dragging=false, moved=0, lx=0, ly=0; const ptrs=new Map(); let pinch=null;
+let dragging=false, mode='pan', moved=0, lx=0, ly=0; const ptrs=new Map(); let pinch=null;
 const touched=()=>{ lastInput=performance.now(); };
+const ZMIN=()=>fitZoom*.6, ZMAX=()=>fitZoom*16;
 function zoomAt(mx,my,nz){
-  nz=clamp(nz,fitZoom*.65,fitZoom*9);
-  const wx=cam.tx+(mx-W/2)/cam.tzoom, wy=cam.ty+(my-H/2)/cam.tzoom;
-  cam.tx=wx-(mx-W/2)/nz; cam.ty=wy-(my-H/2)/nz; cam.tzoom=nz;
+  nz=clamp(nz,ZMIN(),ZMAX());
+  const P=screenToPlane(mx,my,{cx:cam.tcx,cy:cam.tcy,zoom:cam.tzoom}), k=cam.tzoom/nz;
+  cam.tcx=P.x-(P.x-cam.tcx)*k; cam.tcy=P.y-(P.y-cam.tcy)*k; cam.tzoom=nz; clampCam();
 }
+function rotateBy(d){ cam.trot+=d; touched(); }
+function tiltBy(d){ cam.ttilt=clamp(cam.ttilt+d,TILT_MIN,TILT_MAX); touched(); }
 function hitTest(x,y){ for(let i=buildings.length-1;i>=0;i--){ const b=buildings[i]; if(b.poly&&pointInPoly(x,y,b.poly)) return b; } return null; }
 function pointInPoly(x,y,pts){ let inside=false; for(let i=0,j=pts.length-1;i<pts.length;j=i++){ if(((pts[i].y>y)!==(pts[j].y>y))&&(x<(pts[j].x-pts[i].x)*(y-pts[i].y)/(pts[j].y-pts[i].y)+pts[i].x)) inside=!inside; } return inside; }
-function coreHit(x,y){ const p=toScreen(0,0); return Math.hypot(x-p.x,y-(p.y-8*cam.zoom))<70*cam.zoom; }
+function coreHit(x,y){ const p=project(0,0); return Math.hypot(x-p.x,y-(p.y-8*zUnit()))<70*cam.zoom; }
+const pinchState=()=>{ const [p1,p2]=[...ptrs.values()]; return {d:Math.hypot(p1.x-p2.x,p1.y-p2.y), a:Math.atan2(p2.y-p1.y,p2.x-p1.x), mx:(p1.x+p2.x)/2, my:(p1.y+p2.y)/2}; };
+cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('pointerdown',e=>{
   touched(); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); cv.setPointerCapture(e.pointerId);
-  if(ptrs.size===2){ const [p1,p2]=[...ptrs.values()]; pinch={d0:Math.hypot(p1.x-p2.x,p1.y-p2.y),z0:cam.tzoom}; dragging=false; moved=99; return; }
+  if(ptrs.size===2){ const s=pinchState(); pinch={d0:s.d,a0:s.a,z0:cam.tzoom,r0:cam.trot,mx:s.mx,my:s.my}; dragging=false; moved=99; return; }
+  // right button, or shift/alt/ctrl + drag, orbits; plain drag pans
+  mode=(e.button===2||e.button===1||e.shiftKey||e.altKey||e.ctrlKey)?'orbit':'pan';
   dragging=true; moved=0; lx=e.clientX; ly=e.clientY; cv.classList.add('dragging');
 });
 cv.addEventListener('pointermove',e=>{
   touched();
   if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pinch&&ptrs.size===2){ const [p1,p2]=[...ptrs.values()], d=Math.hypot(p1.x-p2.x,p1.y-p2.y); if(d>0&&pinch.d0>0) zoomAt((p1.x+p2.x)/2,(p1.y+p2.y)/2,pinch.z0*d/pinch.d0); return; }
-  if(dragging){ const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY; moved+=Math.abs(dx)+Math.abs(dy);
-    cam.tx-=dx/cam.zoom; cam.ty-=dy/cam.zoom; cam.x=cam.tx; cam.y=cam.ty; return; }
+  if(pinch&&ptrs.size===2){
+    const s=pinchState();
+    if(s.d>0&&pinch.d0>0) zoomAt(s.mx,s.my,pinch.z0*s.d/pinch.d0);
+    cam.trot=pinch.r0+(s.a-pinch.a0);                              // two-finger twist rotates
+    const dy=s.my-pinch.my; if(Math.abs(dy)>2){ tiltBy(-dy*.003); pinch.my=s.my; }   // two-finger drag tilts
+    return;
+  }
+  if(dragging){
+    const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY; moved+=Math.abs(dx)+Math.abs(dy);
+    if(mode==='orbit'){ cam.trot+=dx*.006; cam.ttilt=clamp(cam.ttilt-dy*.004,TILT_MIN,TILT_MAX); cam.rot=cam.trot; cam.tilt=cam.ttilt; }
+    else { const d=screenToPlaneDelta(dx,dy); cam.tcx-=d.x; cam.tcy-=d.y; clampCam(); cam.cx=cam.tcx; cam.cy=cam.tcy; }
+    return;
+  }
   if(e.pointerType==='touch') return;
   const h=hitTest(e.clientX,e.clientY); hover=h;
   cv.classList.toggle('hovering',!!h||coreHit(e.clientX,e.clientY));
@@ -1142,7 +1205,7 @@ function endPointer(e){
   ptrs.delete(e.pointerId); if(ptrs.size<2) pinch=null;
   if(ptrs.size===0){
     dragging=false; cv.classList.remove('dragging');
-    if(moved<6){
+    if(moved<6 && e.button!==2){
       const h=hitTest(e.clientX,e.clientY);
       if(h){ pinned=h; showCard(h,true); setCore(false); history.replaceState(null,'','#sn'+h.s.uid); }
       else if(coreHit(e.clientX,e.clientY)){ setCore(true); pinned=null; hideCard(); }
@@ -1151,9 +1214,28 @@ function endPointer(e){
   }
 }
 cv.addEventListener('pointerup',endPointer); cv.addEventListener('pointercancel',endPointer);
-cv.addEventListener('wheel',e=>{ e.preventDefault(); touched(); zoomAt(e.clientX,e.clientY,cam.tzoom*Math.exp(-e.deltaY*.0013)); },{passive:false});
-function home(){ cam.tx=0; cam.ty=30; cam.tzoom=fitZoom; }
+cv.addEventListener('wheel',e=>{
+  e.preventDefault(); touched();
+  if(e.shiftKey && !e.ctrlKey){ rotateBy((e.deltaY||e.deltaX)*.004); return; }     // shift+wheel rotates
+  zoomAt(e.clientX,e.clientY,cam.tzoom*Math.exp(-e.deltaY*.0015));
+},{passive:false});
+// double-click: fly into a tower, or zoom toward the spot
+cv.addEventListener('dblclick',e=>{
+  const h=hitTest(e.clientX,e.clientY);
+  if(h) focusSub(h,{zoom:Math.max(cam.tzoom*1.6,fitZoom*4.5)}); else zoomAt(e.clientX,e.clientY,cam.tzoom*2);
+});
+function home(){ cam.tcx=0; cam.tcy=0; cam.tzoom=fitZoom; cam.trot=Math.round(cam.trot/TAU)*TAU; cam.ttilt=TILT0; }
 $('homeBtn').onclick=home;
+/* nav cluster */
+const needle=$('needle');
+$('navL').onclick=()=>rotateBy(-Math.PI/4);
+$('navR').onclick=()=>rotateBy(Math.PI/4);
+$('navIn').onclick=()=>zoomAt(W/2,H/2,cam.tzoom*1.6);
+$('navOut').onclick=()=>zoomAt(W/2,H/2,cam.tzoom/1.6);
+$('navCompass').onclick=()=>{ cam.trot=Math.round(cam.trot/TAU)*TAU; touched(); };
+let tiltIdx=0;
+$('navTilt').onclick=()=>{ tiltIdx=(tiltIdx+1)%TILT_PRESETS.length; cam.ttilt=TILT_PRESETS[tiltIdx]; touched();
+  $('navTilt').title=['Isometric view','Map view','Street level'][tiltIdx]+' — click to change'; };
 addEventListener('keydown',e=>{
   touched();
   const typing=document.activeElement===sIn;
@@ -1169,6 +1251,12 @@ addEventListener('keydown',e=>{
   if(e.key==='/'){ e.preventDefault(); sIn.focus(); return; }
   const lk=Object.entries(LENSES).find(([,l])=>l.key===e.key); if(lk) return setLens(lk[0]);
   if(e.key==='0') home();
+  if(e.key==='ArrowLeft'||e.key==='q'||e.key==='Q'){ e.preventDefault(); rotateBy(-Math.PI/8); }
+  if(e.key==='ArrowRight'||e.key==='e'||e.key==='E'){ e.preventDefault(); rotateBy(Math.PI/8); }
+  if(e.key==='ArrowUp'){ e.preventDefault(); tiltBy(.12); }
+  if(e.key==='ArrowDown'){ e.preventDefault(); tiltBy(-.12); }
+  if(e.key==='+'||e.key==='='){ zoomAt(W/2,H/2,cam.tzoom*1.4); }
+  if(e.key==='-'||e.key==='_'){ zoomAt(W/2,H/2,cam.tzoom/1.4); }
   if(e.key==='a'||e.key==='A') toggleAtlas();
   if(e.key==='d'||e.key==='D') togglePaper();
 });
@@ -1195,10 +1283,15 @@ sIn.addEventListener('keydown',e=>{
 });
 function pickHit(i){ sRes.classList.remove('open'); sIn.value=''; sIn.blur(); focusSub(sHits[i]); }
 
-function focusSub(b){
+function focusSub(b,{zoom}={}){
   if(!b) return;
   toggleAtlas(false); togglePaper(false);
-  cam.tx=b.wx; cam.ty=b.wy-20-(innerWidth<640? 60/fitZoom/3.4:0); cam.tzoom=fitZoom*3.4;
+  const z=zoom??Math.max(cam.tzoom,fitZoom*3.4);
+  // centre the tower, nudged so it clears the card (right on desktop, bottom sheet on phones)
+  // screen offset of the camera centre from the tower's base: tower mid-height lands at screen centre
+  // (desktop, shifted left of the card) or in the top third (phones, above the bottom-sheet card)
+  const zu=b.h*K*cosP*z, off=screenToPlaneDelta(innerWidth<640? 0 : 150, innerWidth<640? .17*H-LIFT*z : -.45*zu-LIFT*z, z);
+  cam.tcx=b.px+off.x; cam.tcy=b.py+off.y; cam.tzoom=z; touched();
   pinned=b; showCard(b,true); history.replaceState(null,'','#sn'+b.s.uid);
   $('intro').classList.add('gone');
 }
